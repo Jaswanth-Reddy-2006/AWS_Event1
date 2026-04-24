@@ -98,7 +98,7 @@ npm start
 ### MongoDB Atlas Already Configured
 Connection in `backend/.env`:
 ```
-MONGODB_URI=mongodb+srv://jaswanthre9_db_user:csdAaOanTVzVo5Jx@cluster0.9a0oale.mongodb.net/cloud-tycoon?retryWrites=true&w=majority
+MONGODB_URI=mongodb+srv://user:pass@cluster.mongodb.net/dbname?retryWrites=true&w=majority
 ```
 
 ### JWT Secret

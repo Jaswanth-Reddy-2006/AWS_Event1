@@ -176,9 +176,9 @@ async function seedDatabase() {
   try {
     console.log('🌱 Starting database seed...');
     
-    // Get MongoDB URI from environment
-    const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/cloud-tycoon';
-    console.log(`📦 Connecting to MongoDB: ${mongoUri.split('@')[0]}...`);
+    // Mask password in logs
+    const maskedUri = mongoUri.replace(/\/\/.*:.*@/, '//****:****@');
+    console.log(`📦 Connecting to MongoDB: ${maskedUri}...`);
     
     // Connect to MongoDB
     await mongoose.connect(mongoUri, {

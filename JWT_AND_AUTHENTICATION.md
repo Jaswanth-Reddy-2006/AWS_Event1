@@ -121,7 +121,7 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
 You've configured:
 ```env
-MONGODB_URI=mongodb+srv://jaswanthre9_db_user:csdAaOanTVzVo5Jx@cluster0.9a0oale.mongodb.net/cloud-tycoon?retryWrites=true&w=majority
+MONGODB_URI=mongodb+srv://user:pass@cluster.mongodb.net/dbname?retryWrites=true&w=majority
 ```
 
 This means:
@@ -153,7 +153,7 @@ openssl rand -hex 32
 
 ```env
 # Change from development secret to production secret
-JWT_SECRET=f7a3e2c1b4d6h8j9k0l2m3n5o7p9q1r3s5t7u9v0w2x4y6z8a0
+JWT_SECRET=your-32-char-secret-here
 ```
 
 ### 3. For Heroku/Railway Deployment

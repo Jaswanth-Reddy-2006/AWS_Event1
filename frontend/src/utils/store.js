@@ -16,6 +16,8 @@ export const useGameStore = create(
       // Game state
       currentYear: 1,
       gameStatus: 'not-started', // 'not-started', 'in-progress', 'completed'
+      nextRoundSettings: null,
+      tabSwitchWarnings: 0,
       
       // Company state
       companyState: {
@@ -75,7 +77,11 @@ export const useGameStore = create(
 
       resetAnswers: () => set({ answers: {} }),
 
-      setGameStatus: (status) => set({ gameStatus: status })
+      setGameStatus: (status) => set({ gameStatus: status }),
+
+      setNextRoundSettings: (settings) => set({ nextRoundSettings: settings }),
+
+      setTabSwitchWarnings: (count) => set({ tabSwitchWarnings: count })
     }),
     {
       name: 'cloud-tycoon-store',

@@ -18,6 +18,17 @@ const AdminDashboard = () => {
   const activeTab = tab || 'dashboard';
   const { setLogout } = useGameStore();
 
+  const menuItems = [
+    { id: 'dashboard', label: 'Monitor', icon: <FiHome /> },
+    { id: 'leaderboard', label: 'Ranking', icon: <FiAward /> },
+    { id: 'r1', label: 'Round 1', icon: <FiTarget />, year: 0 },
+    { id: 'r2', label: 'Round 2', icon: <FiTarget />, year: 1 },
+    { id: 'r3', label: 'Round 3', icon: <FiTarget />, year: 2 },
+    { id: 'r4', label: 'Round 4', icon: <FiTarget />, year: 3 },
+    { id: 'r5', label: 'Round 5', icon: <FiTarget />, year: 4 },
+    { id: 'register', label: 'Provision Units', icon: <FiPlus /> },
+  ];
+
   const [settings, setSettings] = useState(null);
   const [teams, setTeams] = useState([]);
   const [questions, setQuestions] = useState([]);
@@ -273,16 +284,6 @@ const AdminDashboard = () => {
     }
   };
 
-  const menuItems = [
-    { id: 'dashboard', label: 'Monitor', icon: <FiHome /> },
-    { id: 'leaderboard', label: 'Ranking', icon: <FiAward /> },
-    { id: 'r1', label: 'Round 1', icon: <FiTarget />, year: 0 },
-    { id: 'r2', label: 'Round 2', icon: <FiTarget />, year: 1 },
-    { id: 'r3', label: 'Round 3', icon: <FiTarget />, year: 2 },
-    { id: 'r4', label: 'Round 4', icon: <FiTarget />, year: 3 },
-    { id: 'r5', label: 'Round 5', icon: <FiTarget />, year: 4 },
-    { id: 'register', label: 'Sign up like create teams', icon: <FiPlus /> },
-  ];
 
   const handleLogout = () => {
     setLogout();

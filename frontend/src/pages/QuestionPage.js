@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import LockdownMode from '../components/LockdownMode';
 import { useGameStore } from '../utils/store';
@@ -21,6 +21,35 @@ const QuestionPage = () => {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [isAuthorized, setIsAuthorized] = useState(true);
+
+  const handleSubmit = useCallback(async () => {
+    if (submitting || submitted) return;
+
+    if (questions.length > 0) {
+        const unasweredIndices = questions.map((q, i) => (answers[q.questionId] === undefined || answers[q.questionId] === '') ? i + 1 : null).filter(i => i !== null);
+        if (unasweredIndices.length > 0 && timeLeft > 0) {
+          setError(`Operational Failure: Tactical scenarios ${unasweredIndices.join(', ')} require data input before final commitment.`);
+          return;
+        }
+    }
+
+    setSubmitting(true);
+    setError('');
+
+    try {
+      await submissionsAPI.submit(year, answers, 1200 - timeLeft);
+      setSubmitted(true);
+      setTimeout(() => {
+          if (document.fullscreenElement) {
+              document.exitFullscreen().catch(() => {});
+          }
+          navigate('/profile', { state: { submissionSuccess: true } });
+      }, 3000);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Uplink Failed. Retrying...');
+      setSubmitting(false);
+    }
+  }, [submitting, submitted, questions, answers, timeLeft, year, navigate]);
 
   useEffect(() => {
     let intervalId;
@@ -110,34 +139,6 @@ const QuestionPage = () => {
     setError('');
   };
 
-  const handleSubmit = async () => {
-    if (submitting || submitted) return;
-
-    if (questions.length > 0) {
-        const unasweredIndices = questions.map((q, i) => (answers[q.questionId] === undefined || answers[q.questionId] === '') ? i + 1 : null).filter(i => i !== null);
-        if (unasweredIndices.length > 0 && timeLeft > 0) {
-          setError(`Operational Failure: Tactical scenarios ${unasweredIndices.join(', ')} require data input before final commitment.`);
-          return;
-        }
-    }
-
-    setSubmitting(true);
-    setError('');
-
-    try {
-      await submissionsAPI.submit(year, answers, 1200 - timeLeft);
-      setSubmitted(true);
-      setTimeout(() => {
-          if (document.fullscreenElement) {
-              document.exitFullscreen().catch(() => {});
-          }
-          navigate('/profile', { state: { submissionSuccess: true } });
-      }, 3000);
-    } catch (err) {
-      setError(err.response?.data?.error || 'Uplink Failed. Retrying...');
-      setSubmitting(false);
-    }
-  };
 
   const renderQuestion = () => {
     const currentQuestion = questions[currentIndex];

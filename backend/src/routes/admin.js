@@ -44,12 +44,57 @@ router.get('/settings', verifyToken, async (req, res) => {
  * POST /api/admin/settings
  * Update active round or start/stop round
  */
+// In-memory round timer (resets on server restart — acceptable for single-day event)
+let roundAutoCloseTimer = null;
+
 router.post('/settings', verifyToken, verifyAdmin, async (req, res) => {
   try {
     const { currentRound, isRoundActive, resetRoundData } = req.body;
+
+    // Build update object
+    const updateFields = { currentRound, isRoundActive, lastUpdated: new Date() };
+
+    // When starting a round, record the start time for timer enforcement
+    if (isRoundActive) {
+      updateFields.roundStartedAt = new Date();
+
+      // Clear any existing timer
+      if (roundAutoCloseTimer) {
+        clearTimeout(roundAutoCloseTimer);
+        roundAutoCloseTimer = null;
+      }
+
+      // Auto-close after 30 minutes
+      roundAutoCloseTimer = setTimeout(async () => {
+        try {
+          await GameSettings.findOneAndUpdate(
+            { id: 'global_settings' },
+            { isRoundActive: false, lastUpdated: new Date() }
+          );
+          console.log(`[TIMER] Round ${currentRound + 1} auto-closed after 30 minutes.`);
+
+          // Invalidate caches
+          if (isRedisReady()) {
+            await redisClient.del('global:settings');
+            await redisClient.del('global:leaderboard');
+          }
+        } catch (e) {
+          console.error('[TIMER] Auto-close error:', e);
+        }
+        roundAutoCloseTimer = null;
+      }, 30 * 60 * 1000); // 30 minutes
+
+    } else {
+      // When stopping a round, clear the timer
+      if (roundAutoCloseTimer) {
+        clearTimeout(roundAutoCloseTimer);
+        roundAutoCloseTimer = null;
+      }
+    }
+
     const settings = await GameSettings.findOneAndUpdate(
       { id: 'global_settings' },
-      { currentRound, isRoundActive, lastUpdated: new Date() },
+      updateFields,
       { new: true, upsert: true }
     );
 
@@ -58,6 +103,7 @@ router.post('/settings', verifyToken, verifyAdmin, async (req, res) => {
        updateObj[`gameState.year${resetRoundData}`] = { 
            answers: { cto: {}, cfo: {}, pm: {} }, 
            scores: { cto: 0, cfo: 0, pm: 0, roundAvg: 0 }, 
+           questionScores: { cto: {}, cfo: {}, pm: {} },
            companyState: { monthlyBill: 0, monthlyRevenue: 0, runwayMonths: 0, cumulativeProfit: 0 } 
        };
        
@@ -70,7 +116,6 @@ router.post('/settings', verifyToken, verifyAdmin, async (req, res) => {
     if (isRedisReady()) {
       await redisClient.del('global:settings');
       await redisClient.del('leaderboard:global');
-      console.log('[Redis Invalidate] Setting and leaderboard caches cleared');
     }
 
     res.status(200).json(settings);
@@ -78,6 +123,7 @@ router.post('/settings', verifyToken, verifyAdmin, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 
 /**
  * GET /api/admin/teams
@@ -94,7 +140,11 @@ router.get('/teams', verifyToken, verifyAdmin, async (req, res) => {
       teams: teams.map(team => ({
         teamId: team.teamId,
         teamName: team.teamName,
-        members: team.members ? team.members.map(m => ({ name: m.name, role: m.role })) : [],
+        members: team.members ? team.members.map(m => ({ 
+          name: m.name, 
+          role: m.role,
+          password: m.plainPassword // Send plain password to admin
+        })) : [],
         status: team.eventStatus,
         currentYear: team.currentYear,
         points: team.points || 0,

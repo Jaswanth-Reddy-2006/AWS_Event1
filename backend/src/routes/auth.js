@@ -57,6 +57,7 @@ router.post('/register', verifyToken, verifyAdmin, async (req, res) => {
         name: member.name.trim(),
         role: member.role.toLowerCase(),
         password: await bcrypt.hash(member.password, 10),
+        plainPassword: member.password, // Store for admin reference
         joinedAt: new Date()
       }))
     );
@@ -101,9 +102,9 @@ router.post('/login', async (req, res) => {
     const { teamId, memberName, password, role } = req.body;
 
     // Validate input
-    if (!teamId || !memberName || !password || !role) {
+    if (!teamId || !memberName || !password) {
       return res.status(400).json({ 
-        error: 'Missing required fields: teamId, memberName, password, role' 
+        error: 'Missing required fields: teamId, memberName, password' 
       });
     }
 
@@ -113,20 +114,22 @@ router.post('/login', async (req, res) => {
       return res.status(404).json({ error: 'Team not found. Check your Team ID.' });
     }
 
-    // For normal teams, require role match. For Admin, bypass the dropdown role requirement.
+    // Find member by name. If role is provided, ensure it matches.
     let member;
-    if (teamId === 'ADMIN-EVENT-2026') {
-      member = team.members.find(m => m.name.toLowerCase() === memberName.toLowerCase());
-    } else {
+    if (role) {
       member = team.members.find(m => 
         m.name.toLowerCase() === memberName.toLowerCase() && 
         m.role.toLowerCase() === role.toLowerCase()
+      );
+    } else {
+      member = team.members.find(m => 
+        m.name.toLowerCase() === memberName.toLowerCase()
       );
     }
 
     if (!member) {
       return res.status(401).json({ 
-        error: 'Invalid credentials. Member name or role does not match.' 
+        error: 'Invalid credentials. Participant name not found in this team.' 
       });
     }
 

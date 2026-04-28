@@ -41,11 +41,13 @@ export const submissionsAPI = {
   submit: (year, answers, timeSpent) => 
     apiClient.post(`/submissions/${year}`, { answers, timeSpent }),
   get: (teamId, year) => apiClient.get(`/submissions/${teamId}/${year}`),
-  disqualify: (year, reason) => apiClient.post(`/submissions/disqualify/${year}`, { reason })
+  disqualify: (year, reason) => apiClient.post(`/submissions/disqualify/${year}`, { reason }),
+  reportScreenOut: () => apiClient.post('/submissions/report-screen-out')
 };
 
 export const leaderboardAPI = {
   getAll: () => apiClient.get('/leaderboard'),
+  getFun: () => apiClient.get('/leaderboard/fun'),
   getTeamPosition: (teamId) => apiClient.get(`/leaderboard/team/${teamId}`)
 };
 

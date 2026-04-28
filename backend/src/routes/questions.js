@@ -14,11 +14,11 @@ router.get('/:year/:role', verifyToken, async (req, res) => {
     const { year, role } = req.params;
 
     // Validate inputs
-    if (![0, 1, 2, 3, 4].includes(parseInt(year))) {
-      return res.status(400).json({ error: 'Invalid year (0-4)' });
+    if (![0, 1, 2, 3, 4, 5, 6].includes(parseInt(year))) {
+      return res.status(400).json({ error: 'Invalid year (0-6)' });
     }
 
-    if (!['cto', 'cfo', 'pm'].includes(role)) {
+    if (!['cto', 'cfo', 'pm', 'fun'].includes(role)) {
       return res.status(400).json({ error: 'Invalid role' });
     }
 
@@ -34,12 +34,15 @@ router.get('/:year/:role', verifyToken, async (req, res) => {
 
     console.log(`[Redis Miss] Fetching questions from DB for ${cacheKey}`);
     const questions = await Question.find(
-      { year: parseInt(year), role },
+      { 
+        year: parseInt(year), 
+        $or: [{ role }, { role: 'fun' }]
+      },
       '-correctAnswer -explanation -scalingEffect'
     );
 
     if (!questions.length) {
-      return res.status(404).json({ error: 'No questions found' });
+      return res.status(200).json({ year: parseInt(year), role, count: 0, questions: [] });
     }
 
     const responseObj = {

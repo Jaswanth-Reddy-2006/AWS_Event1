@@ -1,16 +1,17 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import Leaderboard from '../components/Leaderboard';
+import FunLeaderboard from '../components/FunLeaderboard';
 import Button from '../components/Button';
 import Card from '../components/Card';
 import { adminAPI } from '../utils/api';
 import { useGameStore } from '../utils/store';
-import {
-    FiUsers, FiActivity, FiShield, FiPlus, FiTrash2, FiPlay, FiStopCircle,
-    FiX, FiCheckCircle, FiAlertCircle,
-    FiEye, FiLock,
-    FiTrendingUp, FiUser, FiHome, FiTarget, FiCloud, FiZap, FiCircle, FiAward,
-    FiRadio, FiBarChart2, FiRefreshCw, FiSend
+import { 
+    FiUsers, FiActivity, FiShield, FiPlus, FiTrash2, FiPlay, FiStopCircle, 
+    FiX, FiCheckCircle, FiAlertCircle, 
+    FiEye, FiLock, FiClock,
+    FiTrendingUp, FiUser, FiHome, FiTarget, FiCloud, FiZap, FiCircle, FiAward, FiStar,
+    FiChevronDown, FiChevronUp, FiPlusSquare
 } from 'react-icons/fi';
 
 const AdminDashboard = () => {
@@ -18,6 +19,14 @@ const AdminDashboard = () => {
   const { tab } = useParams();
   const activeTab = tab || 'dashboard';
   const { setLogout } = useGameStore();
+  const [leaderboardMode, setLeaderboardMode] = useState('standard');
+
+  const [isFunRoundsOpen, setIsFunRoundsOpen] = useState(false);
+  const [visiblePasswords, setVisiblePasswords] = useState({});
+
+  const togglePasswordVisibility = (key) => {
+    setVisiblePasswords(prev => ({ ...prev, [key]: !prev[key] }));
+  };
 
   const menuItems = [
     { id: 'dashboard', label: 'Monitor', icon: <FiHome /> },
@@ -27,11 +36,19 @@ const AdminDashboard = () => {
     { id: 'r3', label: 'Round 3', icon: <FiTarget />, year: 2 },
     { id: 'r4', label: 'Round 4', icon: <FiTarget />, year: 3 },
     { id: 'r5', label: 'Round 5', icon: <FiTarget />, year: 4 },
-    { id: 'register', label: 'Provision Units', icon: <FiPlus /> },
-    { id: 'broadcast', label: 'Broadcast', icon: <FiRadio /> },
-    { id: 'analytics', label: 'Analytics', icon: <FiBarChart2 /> },
-    { id: 'recovery', label: 'Recovery', icon: <FiRefreshCw /> },
   ];
+
+  const [funRounds, setFunRounds] = useState([
+    { id: 'funderon1', label: 'Funderon 1', year: 5 },
+    { id: 'funderon2', label: 'Funderon 2', year: 6 },
+  ]);
+
+  const addFunRound = () => {
+    const nextNum = funRounds.length + 1;
+    const nextYear = 4 + nextNum;
+    setFunRounds([...funRounds, { id: `funderon${nextNum}`, label: `Funderon ${nextNum}`, year: nextYear }]);
+    setIsFunRoundsOpen(true);
+  };
 
   const [settings, setSettings] = useState(null);
   const [teams, setTeams] = useState([]);
@@ -39,23 +56,12 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState({ type: '', text: '' });
   const [isAddingQuestion, setIsAddingQuestion] = useState(false);
-  const [editingQId, setEditingQId] = useState(null); // Tracking the question being edited
+  const [editingQId, setEditingQId] = useState(null);
   const [activeRoleFilter, setActiveRoleFilter] = useState('cto'); 
   const [selectedTeam, setSelectedTeam] = useState(null);
-
-  // Broadcast state
-  const [broadcastMsg, setBroadcastMsg] = useState('');
-  const [broadcastType, setBroadcastType] = useState('info');
-  const [broadcastHistory, setBroadcastHistory] = useState([]);
-
-  // Analytics state
-  const [analytics, setAnalytics] = useState([]);
-  const [analyticsLoading, setAnalyticsLoading] = useState(false);
-
-  // Session recovery state
-  const [recoveryTeamId, setRecoveryTeamId] = useState('');
-  const [recoveryRole, setRecoveryRole] = useState('cto');
-  const [recoveryYear, setRecoveryYear] = useState(0);
+  const [roundTimeLeft, setRoundTimeLeft] = useState(null); // seconds remaining
+  const [showInitBanner, setShowInitBanner] = useState(false);
+  const timerRef = useRef(null);
 
   // Admin creation state
   const [newAdmin, setNewAdmin] = useState({
@@ -116,6 +122,23 @@ const AdminDashboard = () => {
     const interval = setInterval(loadAll, 15000);
     return () => clearInterval(interval);
   }, []);
+
+  // Countdown timer effect — recalculates every second from roundStartedAt
+  useEffect(() => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    if (settings?.isRoundActive && settings?.roundStartedAt) {
+      const computeLeft = () => {
+        const deadline = new Date(settings.roundStartedAt).getTime() + 30 * 60 * 1000;
+        const left = Math.max(0, Math.round((deadline - Date.now()) / 1000));
+        setRoundTimeLeft(left);
+      };
+      computeLeft();
+      timerRef.current = setInterval(computeLeft, 1000);
+    } else {
+      setRoundTimeLeft(null);
+    }
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [settings?.isRoundActive, settings?.roundStartedAt]);
   
   useEffect(() => {
     if (newQ.type === 'truefalse') {
@@ -149,7 +172,11 @@ const AdminDashboard = () => {
         
         const hasProgress = teams.some(t => {
             const yd = t.gameState?.[`year${targetYear}`];
-            return yd && (Object.keys(yd.answers?.cto || {}).length > 0 || Object.keys(yd.answers?.cfo || {}).length > 0 || Object.keys(yd.answers?.pm || {}).length > 0);
+            if (!yd || !yd.answers) return false;
+            return Object.keys(yd.answers.cto || {}).length > 0 || 
+                   Object.keys(yd.answers.cfo || {}).length > 0 || 
+                   Object.keys(yd.answers.pm || {}).length > 0 ||
+                   Object.keys(yd.answers.fun || {}).length > 0;
         });
 
         if (targetYear === settings.currentRound && hasProgress && !settings.isRoundActive) {
@@ -205,7 +232,12 @@ const AdminDashboard = () => {
                       ...t,
                       gameState: {
                           ...t.gameState,
-                          [`year${targetYear}`]: { answers: { cto: {}, cfo: {}, pm: {} }, scores: { cto: 0, cfo: 0, pm: 0, roundAvg: 0 }, companyState: { monthlyBill: 0, monthlyRevenue: 0, runwayMonths: 0, cumulativeProfit: 0 } }
+                          [`year${targetYear}`]: { 
+                            answers: { cto: {}, cfo: {}, pm: {}, fun: {} }, 
+                            scores: { cto: 0, cfo: 0, pm: 0, fun: 0, roundAvg: 0 }, 
+                            questionScores: { cto: {}, cfo: {}, pm: {}, fun: {} }, 
+                            companyState: { monthlyBill: 0, monthlyRevenue: 0, runwayMonths: 0, cumulativeProfit: 0 } 
+                          }
                       }
                   };
               }
@@ -214,7 +246,9 @@ const AdminDashboard = () => {
       }
 
       setSettings(res.data);
-      setMsg({ type: 'success', text: `Mission Phase ${targetYear + 1} is now ${start ? 'LIVE' : 'STANDBY'}.` });
+      if (start) setShowInitBanner(true);
+      setTimeout(() => setShowInitBanner(false), 8000);
+      setMsg({ type: 'success', text: `Mission Phase ${targetYear + 1} is now ${start ? 'LIVE — 30 min timer started' : 'STANDBY'}.` });
     } catch (err) {
       setMsg({ type: 'error', text: 'Operational transition failed.' });
     }
@@ -390,6 +424,64 @@ const AdminDashboard = () => {
                     <span>{item.label}</span>
                 </button>
             ))}
+
+            {/* FUN ROUNDS COLLAPSIBLE */}
+            <div className="mt-[8px]">
+                <button
+                    onClick={() => setIsFunRoundsOpen(!isFunRoundsOpen)}
+                    className="w-full flex items-center justify-between px-[16px] py-[12px] rounded-[8px] text-[14px] font-medium text-[#9CA3AF] hover:text-[#F9FAFB] hover:bg-white/5 transition-all"
+                >
+                    <div className="flex items-center gap-[12px]">
+                        <FiStar className="text-yellow-500" size={18} />
+                        <span>Fun Rounds</span>
+                    </div>
+                    {isFunRoundsOpen ? <FiChevronUp /> : <FiChevronDown />}
+                </button>
+
+                {isFunRoundsOpen && (
+                    <div className="flex flex-col gap-[4px] mt-[4px] ml-[16px] border-l border-[#1F2937] pl-[8px] animate-in slide-in-from-top-2 duration-200">
+                        {funRounds.map(round => {
+                            const qCount = questions.filter(q => q.year === round.year).length;
+                            return (
+                                <button
+                                    key={round.id}
+                                    onClick={() => navigate(`/admin/${round.id}`)}
+                                    className={`w-full flex items-center justify-between px-[16px] py-[10px] rounded-[8px] transition-all text-[13px] ${
+                                        activeTab === round.id 
+                                        ? 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20' 
+                                        : 'text-[#6B7280] hover:text-[#F9FAFB] hover:bg-white/5'
+                                    }`}
+                                >
+                                    <div className="flex flex-col items-start">
+                                        <span className="font-semibold">{round.label}</span>
+                                        <span className="text-[10px] opacity-60 uppercase tracking-tighter">{qCount} Questions</span>
+                                    </div>
+                                    {activeTab === round.id && <FiZap size={10} className="animate-pulse" />}
+                                </button>
+                            );
+                        })}
+                        <button
+                            onClick={addFunRound}
+                            className="w-full flex items-center gap-[8px] px-[16px] py-[10px] rounded-[8px] text-[12px] font-bold text-[#7C3AED] hover:bg-[#7C3AED]/10 transition-all uppercase tracking-widest mt-[4px]"
+                        >
+                            <FiPlusSquare size={16} />
+                            <span>Create Round</span>
+                        </button>
+                    </div>
+                )}
+            </div>
+
+            <button
+                onClick={() => navigate('/admin/register')}
+                className={`w-full flex items-center gap-[12px] px-[16px] py-[12px] rounded-[8px] transition-all duration-200 text-[14px] font-medium mt-auto ${
+                    activeTab === 'register' 
+                    ? 'bg-[#10B981]/10 text-[#10B981] shadow-glow-sm border border-[#10B981]/20' 
+                    : 'text-[#9CA3AF] hover:text-[#F9FAFB] hover:bg-white/5'
+                }`}
+            >
+                <FiPlus size={18} />
+                <span>Provision Units</span>
+            </button>
         </nav>
 
         <div className="p-[16px] mt-auto border-t border-[#1F2937]">
@@ -409,6 +501,35 @@ const AdminDashboard = () => {
 
       {/* Main Content Area */}
       <main className="flex-1 ml-[280px] p-[48px] min-h-screen relative">
+        {/* Round Init Banner */}
+        {showInitBanner && settings?.isRoundActive && (
+            <div className="mb-[24px] p-[20px] rounded-[12px] border-2 border-[#7C3AED]/50 bg-[#7C3AED]/10 animate-in slide-in-from-top-4 duration-500 flex items-center justify-between">
+                <div className="flex items-center gap-[16px]">
+                    <FiZap className="text-[#7C3AED] animate-pulse" size={28} />
+                    <div>
+                        <div className="text-[16px] font-bold text-[#F9FAFB] uppercase tracking-widest">🚀 Round {(settings?.currentRound || 0) + 1} is LIVE</div>
+                        <div className="text-[12px] text-[#9CA3AF] mt-[2px]">30-minute countdown started. All teams can now submit.</div>
+                    </div>
+                </div>
+                <button onClick={() => setShowInitBanner(false)} className="text-[#9CA3AF] hover:text-white transition"><FiX size={18} /></button>
+            </div>
+        )}
+
+        {/* Active Round Timer Bar */}
+        {settings?.isRoundActive && roundTimeLeft !== null && (
+            <div className={`mb-[24px] p-[14px] rounded-[10px] border flex items-center gap-[16px] ${
+                roundTimeLeft < 300 ? 'border-red-500/40 bg-red-500/10' : 'border-yellow-500/30 bg-yellow-500/5'
+            }`}>
+                <FiClock className={roundTimeLeft < 300 ? 'text-red-400' : 'text-yellow-400'} size={20} />
+                <span className={`text-[14px] font-bold uppercase tracking-wider ${
+                    roundTimeLeft < 300 ? 'text-red-400' : 'text-yellow-400'
+                }`}>
+                    Round {(settings?.currentRound || 0) + 1} — Time Remaining: {Math.floor(roundTimeLeft / 60)}:{String(roundTimeLeft % 60).padStart(2, '0')}
+                </span>
+                {roundTimeLeft < 300 && <span className="text-[12px] font-bold text-red-300 animate-pulse ml-auto">⚠ ROUND CLOSING SOON</span>}
+            </div>
+        )}
+
         {/* Status Message */}
         {msg.text && (
             <div className={`mb-[32px] p-[16px] rounded-[8px] flex items-center justify-between text-[14px] font-medium border animate-in slide-in-from-top-4 duration-300 ${
@@ -666,49 +787,56 @@ const AdminDashboard = () => {
                                                             const roleAnswers = yData.answers[role];
                                                             const roleScore = yData.scores?.[role] || 0;
                                                             const roleTime = yData.timeSpent?.[role] || 0;
-                                                            const roleViolations = (selectedTeam.gameState?.violations || []).filter(v => v.description?.toLowerCase().includes(role.toLowerCase()) && v.description?.includes(`Round ${y}`));
-
-                                                            const roleMaxPts = 30; // Approx target per role for standard 3 question sets.
-                                                            const roleEff = roleTime > 0 ? Math.min(100, Math.round((roleScore / roleMaxPts) * 100)) : 0;
-
+                                                            const qScores = yData.questionScores?.[role] || {};
                                                             const hasAnswers = roleAnswers && Object.keys(roleAnswers).length > 0;
                                                             
                                                             return (
-                                                                <div key={role} className="flex flex-col md:flex-row items-start md:items-center gap-[16px] py-[12px] border-b border-[#1F2937]/50 last:border-0 text-[14px]">
-                                                                    <div className="w-24 flex-shrink-0">
-                                                                        <span className="text-[12px] font-bold text-[#7C3AED] uppercase border border-[#7C3AED]/20 bg-[#7C3AED]/10 px-[10px] py-[4px] rounded-[6px]">{role}</span>
-                                                                    </div>
-                                                                    <div className="flex-1">
-                                                                        {hasAnswers ? (
-                                                                            <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest px-[8px] py-[4px] border border-emerald-400/20 bg-emerald-400/10 rounded">
-                                                                                Submitted
-                                                                            </span>
-                                                                        ) : (
-                                                                            <span className="text-[10px] font-bold text-[#4B5563] uppercase tracking-widest px-[8px] py-[4px] border border-[#1F2937] bg-[#0B0F14] rounded">
-                                                                                Not Submitted
-                                                                            </span>
-                                                                        )}
-                                                                    </div>
-                                                                    <div className="flex items-center gap-[24px]">
-                                                                        <div className="text-right">
-                                                                            <div className="text-[10px] text-[#9CA3AF] uppercase">Points</div>
-                                                                            <div className="font-bold text-emerald-400">{roleScore} pts</div>
+                                                                <div key={role} className="py-[12px] border-b border-[#1F2937]/50 last:border-0">
+                                                                    <div className="flex flex-col md:flex-row items-start md:items-center gap-[16px] text-[14px] mb-[8px]">
+                                                                        <div className="w-24 flex-shrink-0">
+                                                                            <span className="text-[12px] font-bold text-[#7C3AED] uppercase border border-[#7C3AED]/20 bg-[#7C3AED]/10 px-[10px] py-[4px] rounded-[6px]">{role}</span>
                                                                         </div>
-                                                                        <div className="text-right min-w-[70px]">
-                                                                            <div className="text-[10px] text-[#9CA3AF] uppercase">Efficiency</div>
-                                                                            <div className="font-bold text-[#F9FAFB]">{roleEff}%</div>
+                                                                        <div className="flex-1">
+                                                                            {hasAnswers ? (
+                                                                                <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest px-[8px] py-[4px] border border-emerald-400/20 bg-emerald-400/10 rounded">
+                                                                                    Submitted
+                                                                                </span>
+                                                                            ) : (
+                                                                                <span className="text-[10px] font-bold text-[#4B5563] uppercase tracking-widest px-[8px] py-[4px] border border-[#1F2937] bg-[#0B0F14] rounded">
+                                                                                    Not Submitted
+                                                                                </span>
+                                                                            )}
                                                                         </div>
-                                                                        <div className="text-right min-w-[70px]">
-                                                                            <div className="text-[10px] text-[#9CA3AF] uppercase">Time Spent</div>
-                                                                            <div className="font-medium text-[#F9FAFB]">{formatTime(roleTime)}</div>
-                                                                        </div>
-                                                                        <div className="text-right min-w-[80px]">
-                                                                            <div className="text-[10px] text-[#9CA3AF] uppercase">Risk</div>
-                                                                            <div className={`font-bold ${roleViolations.length > 0 ? 'text-red-500' : 'text-[#4B5563]'}`}>
-                                                                                {roleViolations.length} Violations
+                                                                        <div className="flex items-center gap-[24px]">
+                                                                            <div className="text-right">
+                                                                                <div className="text-[10px] text-[#9CA3AF] uppercase">Points</div>
+                                                                                <div className={`font-bold text-[16px] ${ roleScore < 0 ? 'text-red-400' : roleScore === 0 ? 'text-[#4B5563]' : 'text-emerald-400' }`}>{roleScore > 0 ? '+' : ''}{roleScore} pts</div>
+                                                                            </div>
+                                                                            <div className="text-right min-w-[70px]">
+                                                                                <div className="text-[10px] text-[#9CA3AF] uppercase">Time Spent</div>
+                                                                                <div className="font-medium text-[#F9FAFB]">{formatTime(roleTime)}</div>
                                                                             </div>
                                                                         </div>
                                                                     </div>
+                                                                    {/* Per-question score breakdown */}
+                                                                    {hasAnswers && Object.keys(qScores).length > 0 && (
+                                                                        <div className="ml-[32px] mt-[8px] flex flex-wrap gap-[8px]">
+                                                                            {Object.entries(qScores).map(([qId, pts], qi) => {
+                                                                                const isPos = pts > 0;
+                                                                                const isNeg = pts < 0;
+                                                                                const isZero = pts === 0;
+                                                                                return (
+                                                                                    <span key={qId} title={`Q${qi+1}: ${qId}`} className={`text-[11px] font-mono px-[8px] py-[3px] rounded border ${
+                                                                                        isPos ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' :
+                                                                                        isNeg ? 'bg-red-500/10 border-red-500/30 text-red-300' :
+                                                                                        'bg-white/5 border-[#1F2937] text-[#4B5563]'
+                                                                                    }`}>
+                                                                                        {isPos ? '✓' : isNeg ? '✗' : '—'} Q{qi+1}: {pts > 0 ? '+' : ''}{pts}pts
+                                                                                    </span>
+                                                                                );
+                                                                            })}
+                                                                        </div>
+                                                                    )}
                                                                 </div>
                                                             );
                                                         })}
@@ -751,22 +879,46 @@ const AdminDashboard = () => {
 
             {activeTab === 'leaderboard' && (
                 <div className="animate-in fade-in duration-500">
-                    <div className="mb-[48px]">
-                        <h2 className="text-[32px] font-semibold text-[#F9FAFB] tracking-tight">Global Rankings</h2>
-                        <p className="text-[14px] text-[#9CA3AF] mt-[4px]">Live valuation progression map and multi-year analytics.</p>
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-24 mb-[48px]">
+                        <div>
+                            <h2 className="text-[32px] font-semibold text-[#F9FAFB] tracking-tight">Global Rankings</h2>
+                            <p className="text-[14px] text-[#9CA3AF] mt-[4px]">Live valuation progression map and multi-year analytics.</p>
+                        </div>
+                        <div className="flex bg-[#111827] rounded-[8px] p-[4px] border border-[#1F2937]">
+                             <button
+                                 onClick={() => setLeaderboardMode('standard')}
+                                 className={`px-[20px] py-[8px] rounded-[6px] text-[12px] font-bold uppercase transition-all ${leaderboardMode === 'standard' ? 'bg-[#7C3AED] text-white' : 'text-[#9CA3AF] hover:text-[#F9FAFB]'}`}
+                             >
+                                 Standard
+                             </button>
+                             <button
+                                 onClick={() => setLeaderboardMode('fun')}
+                                 className={`px-[20px] py-[8px] rounded-[6px] text-[12px] font-bold uppercase transition-all ${leaderboardMode === 'fun' ? 'bg-yellow-600 text-white shadow-glow-sm' : 'text-[#9CA3AF] hover:text-[#F9FAFB]'}`}
+                             >
+                                 Experimental
+                             </button>
+                        </div>
                     </div>
-                    {/* Leaderboard gets directly mounted to show valuation of all rounds up to 5 */}
-                    <Leaderboard />
+                    {leaderboardMode === 'standard' ? <Leaderboard /> : <FunLeaderboard />}
                 </div>
             )}
 
-            {['r1', 'r2', 'r3', 'r4', 'r5'].includes(activeTab) && (() => {
-                const tabYear = menuItems.find(m => m.id === activeTab)?.year;
+            {['r1', 'r2', 'r3', 'r4', 'r5', ...funRounds.map(f => f.id)].includes(activeTab) && (() => {
+                const isFunTab = activeTab.startsWith('funderon');
+                const tabItem = [...menuItems, ...funRounds].find(m => m.id === activeTab);
+                const tabYear = tabItem?.year;
                 const isThisRoundLive = settings?.currentRound === tabYear && settings?.isRoundActive;
+                
+                // For Fun Rounds, we use a simpler progress check
                 const hasProg = teams.some(t => {
                     const yd = t.gameState?.[`year${tabYear}`];
-                    return yd && (Object.keys(yd.answers?.cto || {}).length > 0 || Object.keys(yd.answers?.cfo || {}).length > 0 || Object.keys(yd.answers?.pm || {}).length > 0);
+                    if (!yd || !yd.answers) return false;
+                    return Object.keys(yd.answers.cto || {}).length > 0 || 
+                           Object.keys(yd.answers.cfo || {}).length > 0 || 
+                           Object.keys(yd.answers.pm || {}).length > 0 ||
+                           (yd.answers.fun && Object.keys(yd.answers.fun).length > 0);
                 });
+                
                 const isLocked = tabYear < settings?.currentRound || (tabYear === settings?.currentRound && !settings?.isRoundActive && hasProg);
 
                 let btnIcon, btnLabel, btnStyle;
@@ -789,8 +941,12 @@ const AdminDashboard = () => {
                     <Card className="p-[32px]">
                         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-[24px] mb-[48px]">
                             <div>
-                                <h2 className="text-[32px] font-semibold text-[#F9FAFB] tracking-tight">Phase 0{activeTab.slice(1)}</h2>
-                                <p className="text-[14px] text-[#7C3AED] font-medium uppercase tracking-widest mt-[8px]">Deployment Window: Year {tabYear}</p>
+                                <h2 className="text-[32px] font-semibold text-[#F9FAFB] tracking-tight">
+                                    {isFunTab ? tabItem?.label : `Phase 0${activeTab.slice(1)}`}
+                                </h2>
+                                <p className="text-[14px] text-[#7C3AED] font-medium uppercase tracking-widest mt-[8px]">
+                                    {isFunTab ? 'Experimental Engagement Cluster' : `Deployment Window: Year ${tabYear}`}
+                                </p>
                             </div>
                             
                             <Button
@@ -809,19 +965,40 @@ const AdminDashboard = () => {
                             </Button>
                         </div>
 
-                        {/* Filter Area for Roles */}
+                        {/* Filter Area for Roles / Sub-Rounds */}
                         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-[24px] mb-[32px] pb-[24px] border-b border-[#1F2937]">
                              <div className="flex bg-[#111827] rounded-[8px] p-[4px] border border-[#1F2937]">
-                                 {['cto', 'cfo', 'pm'].map(role => (
+                                 {(isFunTab ? ['fun'] : ['cto', 'cfo', 'pm']).map(role => (
                                      <button
                                          key={role}
                                          onClick={() => { setActiveRoleFilter(role); setIsAddingQuestion(false); }}
                                          className={`px-[24px] py-[8px] rounded-[6px] text-[14px] font-medium uppercase transition-all ${activeRoleFilter === role ? 'bg-[#7C3AED] text-white shadow-glow-sm' : 'text-[#9CA3AF] hover:text-[#F9FAFB]'}`}
                                      >
-                                         {role}
+                                         {role === 'fun' ? 'All Participants' : role}
                                      </button>
                                  ))}
                              </div>
+
+                             {isFunTab && (
+                                 <div className="flex items-center gap-[12px]">
+                                     <label className="text-[11px] font-bold text-[#9CA3AF] uppercase">Sub-Round Map:</label>
+                                     <select 
+                                        className="bg-[#111827] border border-[#1F2937] text-[#F9FAFB] text-[14px] py-[8px] px-[12px] rounded-[8px] focus:outline-none"
+                                        onChange={(e) => {
+                                            const qId = e.target.value;
+                                            if (qId) {
+                                               const q = questions.find(qn => qn._id === qId);
+                                               if (q) handleEditClick(q);
+                                            }
+                                        }}
+                                     >
+                                         <option value="">Select Scenario...</option>
+                                         {questions.filter(q => q.year === tabYear && q.role === 'fun').map((q, idx) => (
+                                             <option key={q._id} value={q._id}>Sub-Round {idx + 1}: {q.question.substring(0, 30)}...</option>
+                                         ))}
+                                     </select>
+                                 </div>
+                             )}
 
                              <Button 
                                 variant={isAddingQuestion ? 'ghost' : 'secondary'}
@@ -842,6 +1019,9 @@ const AdminDashboard = () => {
                                             range: { min: 1, max: 10 },
                                             scoringRubric: { full: 10, partial: 5, incorrect: -5 }
                                         });
+                                    } else {
+                                        // Auto-set role if in fun tab
+                                        if (isFunTab) setActiveRoleFilter('fun');
                                     }
                                     setIsAddingQuestion(!isAddingQuestion);
                                 }}
@@ -1051,16 +1231,18 @@ const AdminDashboard = () => {
 
                         {/* List of Questions */}
                         <div className="flex flex-col gap-[16px]">
-                            {questions.filter(q => q.year === menuItems.find(m => m.id === activeTab).year && q.role === activeRoleFilter).length === 0 ? (
+                            {questions.filter(q => q.year === tabYear && q.role === activeRoleFilter).length === 0 ? (
                                 <div className="py-[48px] text-center text-[#9CA3AF] text-[14px] border border-dashed border-[#1F2937] rounded-[12px]">
-                                    No scenarios configured for {activeRoleFilter.toUpperCase()} in this phase.
+                                    No scenarios configured for {activeRoleFilter === 'fun' ? 'ALL PARTICIPANTS' : activeRoleFilter.toUpperCase()} in this phase.
                                 </div>
                             ) : (
-                                questions.filter(q => q.year === menuItems.find(m => m.id === activeTab).year && q.role === activeRoleFilter).map((q, i) => (
+                                questions.filter(q => q.year === tabYear && q.role === activeRoleFilter).map((q, i) => (
                                     <div key={i} className="p-[24px] bg-[#111827] rounded-[12px] border border-[#1F2937] flex flex-col md:flex-row items-start justify-between gap-[24px] group hover:bg-[#1F2937]/50 hover:border-[#7C3AED]/30 transition-all duration-300">
                                         <div className="flex-1 w-full">
                                             <div className="flex items-center gap-[12px] mb-[16px]">
-                                                <span className="bg-[#7C3AED]/10 text-[#7C3AED] px-[12px] py-[4px] rounded-[4px] text-[10px] font-bold uppercase tracking-wider border border-[#7C3AED]/20">{q.role}</span>
+                                                <span className="bg-[#7C3AED]/10 text-[#7C3AED] px-[12px] py-[4px] rounded-[4px] text-[10px] font-bold uppercase tracking-wider border border-[#7C3AED]/20">
+                                                    {q.role === 'fun' ? 'All Participants' : q.role}
+                                                </span>
                                                 <span className="text-[12px] font-medium text-[#9CA3AF] uppercase tracking-widest flex items-center">
                                                     <FiAward className="mr-[8px] text-[#7C3AED]" size={14} /> {q.scoringRubric?.full || 0} Units
                                                 </span>
@@ -1223,25 +1405,159 @@ const AdminDashboard = () => {
             )}
 
             {activeTab === 'register' && (
-                <div className="max-w-[800px] mx-auto animate-in fade-in duration-500">
-                    <div className="mb-[32px]">
-                        <h2 className="text-[32px] font-semibold text-[#F9FAFB] tracking-tight">Create New Team</h2>
-                        <p className="text-[14px] text-[#9CA3AF] mt-[4px]">Register a new unit with individual member credentials.</p>
+                <div className="max-w-[1000px] mx-auto animate-in fade-in duration-500">
+                    <div className="mb-[32px] flex justify-between items-end">
+                        <div>
+                            <h2 className="text-[32px] font-semibold text-[#F9FAFB] tracking-tight">Provision Units</h2>
+                            <p className="text-[14px] text-[#9CA3AF] mt-[4px]">Register a new unit or view existing deployment credentials.</p>
+                        </div>
+                        <Button 
+                            variant="primary" 
+                            onClick={() => setCreatedTeamId(null)}
+                            className="h-40 px-16 text-12 mb-4"
+                        >
+                            <FiPlus className="mr-8" /> REGISTER NEW
+                        </Button>
                     </div>
 
-                    {createdTeamId && (
-                        <div className="mb-[32px] p-[24px] bg-[#7C3AED]/10 border border-[#7C3AED]/30 rounded-[12px] flex items-center justify-between">
-                            <div>
-                                <span className="text-[10px] font-bold text-[#7C3AED] uppercase tracking-[0.2em] block mb-[4px]">Mission Accomplished</span>
-                                <span className="text-[18px] font-semibold text-[#F9FAFB]">Unit Initialized with Tactical ID:</span>
-                            </div>
-                            <div className="text-[32px] font-mono font-bold text-[#7C3AED] tracking-tighter">
-                                {createdTeamId}
-                            </div>
-                        </div>
-                    )}
+                    {!createdTeamId ? (
+                        <div className="flex flex-col gap-32">
+                            {/* REGISTER NEW TEAM FORM */}
+                            <Card className="p-[40px]">
+                                <form onSubmit={async (e) => {
+                                    e.preventDefault();
+                                    try {
+                                        const res = await adminAPI.registerTeam(newTeam);
+                                        setCreatedTeamId(res.data.teamId);
+                                        setMsg({ type: 'success', text: `Unit Registered. TEAM ID: ${res.data.teamId}` });
+                                        // Refresh teams list
+                                        const tms = await adminAPI.getTeams();
+                                        setTeams(tms.data.teams || []);
+                                    } catch (err) {
+                                        setMsg({ type: 'error', text: err.response?.data?.error || 'Registration failed.' });
+                                    }
+                                }} className="flex flex-col gap-[32px]">
+                                    <div className="flex flex-col gap-[8px]">
+                                        <label className="text-[12px] font-medium text-[#9CA3AF] uppercase tracking-widest px-[4px]">Team Identity</label>
+                                        <input 
+                                            type="text"
+                                            placeholder="Enter Team Name"
+                                            value={newTeam.teamName}
+                                            onChange={e => setNewTeam({...newTeam, teamName: e.target.value})}
+                                            className="w-full px-[16px] py-[12px] bg-[#111827] border border-[#1F2937] rounded-[8px] text-[14px] text-[#F9FAFB] focus:border-[#7C3AED] focus:outline-none transition-all"
+                                            required
+                                        />
+                                    </div>
 
-                    {createdTeamId ? (
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-[24px]">
+                                        {newTeam.members.map((member, idx) => (
+                                            <div key={idx} className="flex flex-col gap-[16px] p-[20px] bg-[#111827] rounded-[12px] border border-[#1F2937]">
+                                                <span className="text-[12px] font-bold text-[#7C3AED] uppercase tracking-widest">{member.role}</span>
+                                                <div className="flex flex-col gap-[8px]">
+                                                    <label className="text-[10px] font-medium text-[#9CA3AF] uppercase">Name</label>
+                                                    <input 
+                                                        type="text"
+                                                        placeholder="Operator Name"
+                                                        value={member.name}
+                                                        onChange={e => {
+                                                            const m = [...newTeam.members];
+                                                            m[idx].name = e.target.value;
+                                                            setNewTeam({...newTeam, members: m});
+                                                        }}
+                                                        className="w-full px-[12px] py-[8px] bg-[#0B0F14] border border-[#1F2937] rounded-[6px] text-[13px] text-[#F9FAFB] focus:border-[#7C3AED] focus:outline-none transition-all"
+                                                        required
+                                                    />
+                                                </div>
+                                                <div className="flex flex-col gap-[8px]">
+                                                    <label className="text-[10px] font-medium text-[#9CA3AF] uppercase">Password</label>
+                                                    <div className="relative">
+                                                        <input 
+                                                            type="text"
+                                                            placeholder="••••••••"
+                                                            value={member.password}
+                                                            onChange={e => {
+                                                                const m = [...newTeam.members];
+                                                                m[idx].password = e.target.value;
+                                                                setNewTeam({...newTeam, members: m});
+                                                            }}
+                                                            className="w-full px-[12px] py-[8px] bg-[#0B0F14] border border-[#1F2937] rounded-[6px] text-[13px] text-[#F9FAFB] focus:border-[#7C3AED] focus:outline-none transition-all"
+                                                            required
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    <Button type="submit" className="w-full h-[56px] mt-[16px]">
+                                        <FiPlus size={20} className="mr-[8px]" />
+                                        <span className="text-[16px] uppercase tracking-wider">Initialize Team Deployment</span>
+                                    </Button>
+                                </form>
+                            </Card>
+
+                            {/* REGISTERED TEAMS LIST WITH PASSWORDS */}
+                            <Card className="p-0 overflow-hidden border-[#1F2937]">
+                                <div className="px-24 py-16 bg-[#111827] border-b border-[#1F2937] flex items-center justify-between">
+                                    <h3 className="text-16 font-bold text-[#F9FAFB] uppercase tracking-wider">Deployment Registry</h3>
+                                    <span className="text-12 text-[#9CA3AF] font-medium">{teams.length} Teams Online</span>
+                                </div>
+                                <div className="overflow-x-auto max-h-[600px] overflow-y-auto hidden-scrollbar">
+                                    <table className="w-full text-left">
+                                        <thead className="bg-[#0F172A] border-b border-[#1F2937] sticky top-0 z-10">
+                                            <tr>
+                                                <th className="px-16 py-12 text-10 font-bold text-[#9CA3AF] uppercase tracking-widest">Team ID</th>
+                                                <th className="px-16 py-12 text-10 font-bold text-[#9CA3AF] uppercase tracking-widest">Team Name</th>
+                                                <th className="px-16 py-12 text-10 font-bold text-[#9CA3AF] uppercase tracking-widest">Operator (Role)</th>
+                                                <th className="px-16 py-12 text-10 font-bold text-[#9CA3AF] uppercase tracking-widest border-l border-[#1F2937]">Password</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-[#1F2937]">
+                                            {teams.map((team, tIdx) => (
+                                                <React.Fragment key={team._id}>
+                                                    {team.members.map((member, mIdx) => (
+                                                        <tr key={`${team._id}-${mIdx}`} className={`hover:bg-white/[0.02] transition-colors ${mIdx === 0 ? 'bg-white/[0.01]' : ''}`}>
+                                                            {mIdx === 0 ? (
+                                                                <td className="px-16 py-12 align-top" rowSpan={3}>
+                                                                    <span className="font-mono text-14 text-[#7C3AED] font-bold">{team.teamId}</span>
+                                                                </td>
+                                                            ) : null}
+                                                            {mIdx === 0 ? (
+                                                                <td className="px-16 py-12 align-top" rowSpan={3}>
+                                                                    <span className="text-14 font-semibold text-[#F9FAFB]">{team.teamName}</span>
+                                                                </td>
+                                                            ) : null}
+                                                            <td className="px-16 py-12">
+                                                                <div className="flex items-center gap-8">
+                                                                    <span className="text-13 text-[#D1D5DB]">{member.name}</span>
+                                                                    <span className="text-9 font-bold text-[#7C3AED] bg-[#7C3AED]/10 px-6 py-2 rounded border border-[#7C3AED]/20 uppercase">{member.role}</span>
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-16 py-12 border-l border-[#1F2937]">
+                                                                <input 
+                                                                    type="text"
+                                                                    value={member.password}
+                                                                    readOnly
+                                                                    className="w-full bg-[#0B0F14] border border-[#1F2937] rounded-[4px] px-[8px] py-[4px] text-[12px] font-mono text-emerald-400 font-bold opacity-70 cursor-default focus:outline-none"
+                                                                />
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </React.Fragment>
+                                            ))}
+                                            {teams.length === 0 && (
+                                                <tr>
+                                                    <td colSpan="4" className="px-16 py-48 text-center text-[#4B5563] italic">
+                                                        No teams registered in the command cluster yet.
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </Card>
+                        </div>
+                    ) : (
                         <Card className="p-[48px] text-center border-emerald-500/20 bg-emerald-500/5">
                             <div className="w-[80px] h-[80px] bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-[24px]">
                                 <FiCheckCircle className="text-emerald-500" size={40} />
@@ -1271,312 +1587,9 @@ const AdminDashboard = () => {
                                 Register Another Team
                             </Button>
                         </Card>
-                    ) : (
-                        <Card className="p-[40px]">
-                            <form onSubmit={async (e) => {
-                                e.preventDefault();
-                                try {
-                                    const res = await adminAPI.registerTeam(newTeam);
-                                    setCreatedTeamId(res.data.teamId);
-                                    setMsg({ type: 'success', text: `Unit Registered. TEAM ID: ${res.data.teamId}` });
-                                    // Refresh teams list
-                                    const tms = await adminAPI.getTeams();
-                                    setTeams(tms.data.teams || []);
-                                } catch (err) {
-                                    setMsg({ type: 'error', text: err.response?.data?.error || 'Registration failed.' });
-                                }
-                            }} className="flex flex-col gap-[32px]">
-                                <div className="flex flex-col gap-[8px]">
-                                    <label className="text-[12px] font-medium text-[#9CA3AF] uppercase tracking-widest px-[4px]">Team Identity</label>
-                                    <input 
-                                        type="text"
-                                        placeholder="Enter Team Name"
-                                        value={newTeam.teamName}
-                                        onChange={e => setNewTeam({...newTeam, teamName: e.target.value})}
-                                        className="w-full px-[16px] py-[12px] bg-[#111827] border border-[#1F2937] rounded-[8px] text-[14px] text-[#F9FAFB] focus:border-[#7C3AED] focus:outline-none transition-all"
-                                        required
-                                    />
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-[24px]">
-                                    {newTeam.members.map((member, idx) => (
-                                        <div key={idx} className="flex flex-col gap-[16px] p-[20px] bg-[#111827] rounded-[12px] border border-[#1F2937]">
-                                            <span className="text-[12px] font-bold text-[#7C3AED] uppercase tracking-widest">{member.role}</span>
-                                            <div className="flex flex-col gap-[8px]">
-                                                <label className="text-[10px] font-medium text-[#9CA3AF] uppercase">Name</label>
-                                                <input 
-                                                    type="text"
-                                                    placeholder="Operator Name"
-                                                    value={member.name}
-                                                    onChange={e => {
-                                                        const m = [...newTeam.members];
-                                                        m[idx].name = e.target.value;
-                                                        setNewTeam({...newTeam, members: m});
-                                                    }}
-                                                    className="w-full px-[12px] py-[8px] bg-[#0B0F14] border border-[#1F2937] rounded-[6px] text-[13px] text-[#F9FAFB] focus:border-[#7C3AED] focus:outline-none transition-all"
-                                                    required
-                                                />
-                                            </div>
-                                            <div className="flex flex-col gap-[8px]">
-                                                <label className="text-[10px] font-medium text-[#9CA3AF] uppercase">Password</label>
-                                                <input 
-                                                    type="password"
-                                                    placeholder="••••••••"
-                                                    value={member.password}
-                                                    onChange={e => {
-                                                        const m = [...newTeam.members];
-                                                        m[idx].password = e.target.value;
-                                                        setNewTeam({...newTeam, members: m});
-                                                    }}
-                                                    className="w-full px-[12px] py-[8px] bg-[#0B0F14] border border-[#1F2937] rounded-[6px] text-[13px] text-[#F9FAFB] focus:border-[#7C3AED] focus:outline-none transition-all"
-                                                    required
-                                                />
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-
-                                <Button type="submit" className="w-full h-[56px] mt-[16px]">
-                                    <FiPlus size={20} className="mr-[8px]" />
-                                    <span className="text-[16px] uppercase tracking-wider">Initialize Team Deployment</span>
-                                </Button>
-                            </form>
-                        </Card>
                     )}
                 </div>
-            )}
-            {activeTab === 'broadcast' && (
-                <div className="flex flex-col gap-[32px] animate-in fade-in duration-500">
-                    <div>
-                        <h2 className="text-[32px] font-semibold text-[#F9FAFB] tracking-tight">Broadcast Center</h2>
-                        <p className="text-[14px] text-[#9CA3AF] mt-[4px]">Send real-time announcements to all connected players.</p>
-                    </div>
 
-                    <Card className="p-[32px]">
-                        <div className="flex flex-col gap-[24px]">
-                            <div className="flex flex-col gap-[8px]">
-                                <label className="text-[12px] font-medium text-[#9CA3AF] uppercase tracking-widest">Message</label>
-                                <textarea
-                                    value={broadcastMsg}
-                                    onChange={e => setBroadcastMsg(e.target.value)}
-                                    placeholder="Enter your announcement..."
-                                    className="w-full px-[16px] py-[12px] bg-[#111827] border border-[#1F2937] rounded-[8px] text-[14px] text-[#F9FAFB] min-h-[100px] focus:border-[#7C3AED] focus:outline-none transition-all"
-                                />
-                            </div>
-                            <div className="flex items-center gap-[16px]">
-                                <div className="flex bg-[#111827] rounded-[8px] p-[4px] border border-[#1F2937]">
-                                    {['info', 'warning', 'danger'].map(t => (
-                                        <button
-                                            key={t}
-                                            onClick={() => setBroadcastType(t)}
-                                            className={`px-[16px] py-[6px] rounded-[6px] text-[12px] font-bold uppercase transition-all ${
-                                                broadcastType === t
-                                                    ? t === 'danger' ? 'bg-red-500 text-white' : t === 'warning' ? 'bg-amber-500 text-black' : 'bg-[#7C3AED] text-white'
-                                                    : 'text-[#9CA3AF] hover:text-white'
-                                            }`}
-                                        >
-                                            {t}
-                                        </button>
-                                    ))}
-                                </div>
-                                <Button
-                                    onClick={async () => {
-                                        if (!broadcastMsg.trim()) return;
-                                        try {
-                                            await adminAPI.broadcast(broadcastMsg, broadcastType);
-                                            setBroadcastHistory(prev => [{ message: broadcastMsg, type: broadcastType, timestamp: new Date() }, ...prev]);
-                                            setBroadcastMsg('');
-                                            setMsg({ type: 'success', text: 'Broadcast sent to all players.' });
-                                        } catch {
-                                            setMsg({ type: 'error', text: 'Failed to send broadcast.' });
-                                        }
-                                    }}
-                                    className="px-[24px]"
-                                >
-                                    <FiSend size={16} className="mr-[8px]" /> Send Broadcast
-                                </Button>
-                            </div>
-                        </div>
-                    </Card>
-
-                    {broadcastHistory.length > 0 && (
-                        <Card className="p-[32px]">
-                            <h3 className="text-[16px] font-bold text-[#F9FAFB] mb-[16px] uppercase tracking-wider">Sent This Session</h3>
-                            <div className="flex flex-col gap-[12px]">
-                                {broadcastHistory.map((b, i) => (
-                                    <div key={i} className={`p-[16px] rounded-[8px] border flex items-start gap-[12px] ${
-                                        b.type === 'danger' ? 'bg-red-500/5 border-red-500/20' :
-                                        b.type === 'warning' ? 'bg-amber-500/5 border-amber-500/20' :
-                                        'bg-[#7C3AED]/5 border-[#7C3AED]/20'
-                                    }`}>
-                                        <FiRadio className={b.type === 'danger' ? 'text-red-400' : b.type === 'warning' ? 'text-amber-400' : 'text-[#7C3AED]'} size={16} />
-                                        <div className="flex-1">
-                                            <p className="text-[14px] text-[#F9FAFB]">{b.message}</p>
-                                            <span className="text-[10px] text-[#9CA3AF] font-mono mt-[4px] block">{new Date(b.timestamp).toLocaleTimeString()}</span>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </Card>
-                    )}
-                </div>
-            )}
-
-            {activeTab === 'analytics' && (
-                <div className="flex flex-col gap-[32px] animate-in fade-in duration-500">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <h2 className="text-[32px] font-semibold text-[#F9FAFB] tracking-tight">Question Analytics</h2>
-                            <p className="text-[14px] text-[#9CA3AF] mt-[4px]">Per-question response data across all teams.</p>
-                        </div>
-                        <Button
-                            onClick={async () => {
-                                setAnalyticsLoading(true);
-                                try {
-                                    const res = await adminAPI.getAnalytics();
-                                    setAnalytics(res.data);
-                                } catch {
-                                    setMsg({ type: 'error', text: 'Failed to load analytics.' });
-                                }
-                                setAnalyticsLoading(false);
-                            }}
-                            className="px-[24px]"
-                        >
-                            <FiBarChart2 size={16} className="mr-[8px]" /> {analyticsLoading ? 'Loading...' : 'Refresh Data'}
-                        </Button>
-                    </div>
-
-                    {analytics.length === 0 ? (
-                        <Card className="p-[48px] text-center">
-                            <FiBarChart2 size={48} className="text-[#1F2937] mx-auto mb-[16px]" />
-                            <p className="text-[14px] text-[#9CA3AF]">Click "Refresh Data" to load question analytics.</p>
-                        </Card>
-                    ) : (
-                        <div className="flex flex-col gap-[16px]">
-                            {[0,1,2,3,4].map(year => {
-                                const yearQs = analytics.filter(a => a.year === year);
-                                if (yearQs.length === 0) return null;
-                                return (
-                                    <Card key={year} className="p-[24px]">
-                                        <h3 className="text-[16px] font-bold text-[#F9FAFB] mb-[16px] uppercase tracking-wider border-b border-[#1F2937] pb-[12px]">Round {year + 1}</h3>
-                                        <div className="flex flex-col gap-[12px]">
-                                            {yearQs.map((q, idx) => (
-                                                <div key={idx} className="p-[16px] bg-[#111827] rounded-[8px] border border-[#1F2937]">
-                                                    <div className="flex items-start justify-between gap-[16px] mb-[12px]">
-                                                        <div className="flex-1">
-                                                            <div className="flex items-center gap-[8px] mb-[4px]">
-                                                                <span className="text-[10px] font-bold text-[#7C3AED] uppercase bg-[#7C3AED]/10 px-[8px] py-[2px] rounded border border-[#7C3AED]/20">{q.role}</span>
-                                                                <span className="text-[10px] font-medium text-[#9CA3AF] uppercase">{q.type}</span>
-                                                            </div>
-                                                            <p className="text-[14px] text-[#F9FAFB] font-medium">{q.question}...</p>
-                                                        </div>
-                                                        <div className="flex items-center gap-[16px] shrink-0">
-                                                            <div className="text-center">
-                                                                <div className="text-[20px] font-bold font-mono text-[#F9FAFB]">{q.totalAnswered}</div>
-                                                                <div className="text-[9px] text-[#9CA3AF] uppercase">Answered</div>
-                                                            </div>
-                                                            <div className="text-center">
-                                                                <div className={`text-[20px] font-bold font-mono ${q.accuracy >= 70 ? 'text-emerald-400' : q.accuracy >= 40 ? 'text-amber-400' : 'text-red-400'}`}>{q.accuracy}%</div>
-                                                                <div className="text-[9px] text-[#9CA3AF] uppercase">Accuracy</div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                    <div className="w-full h-[4px] bg-[#1F2937] rounded-full overflow-hidden">
-                                                        <div className={`h-full rounded-full transition-all ${q.accuracy >= 70 ? 'bg-emerald-500' : q.accuracy >= 40 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${q.accuracy}%` }} />
-                                                    </div>
-                                                    {Object.keys(q.optionCounts).length > 0 && (
-                                                        <div className="flex gap-[8px] mt-[12px] flex-wrap">
-                                                            {Object.entries(q.optionCounts).map(([opt, count]) => (
-                                                                <span key={opt} className="text-[11px] font-mono bg-[#0B0F14] border border-[#1F2937] px-[8px] py-[4px] rounded text-[#9CA3AF]">
-                                                                    {opt}: <span className="text-[#F9FAFB] font-bold">{count}</span>
-                                                                </span>
-                                                            ))}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </Card>
-                                );
-                            })}
-                        </div>
-                    )}
-                </div>
-            )}
-
-            {activeTab === 'recovery' && (
-                <div className="flex flex-col gap-[32px] animate-in fade-in duration-500 max-w-[600px]">
-                    <div>
-                        <h2 className="text-[32px] font-semibold text-[#F9FAFB] tracking-tight">Session Recovery</h2>
-                        <p className="text-[14px] text-[#9CA3AF] mt-[4px]">Recover disqualified players so they can re-enter a round. Only works for players who were auto-disqualified (not already submitted).</p>
-                    </div>
-
-                    <Card className="p-[32px]">
-                        <form onSubmit={async (e) => {
-                            e.preventDefault();
-                            try {
-                                const res = await adminAPI.recoverSession(recoveryTeamId, recoveryRole, recoveryYear);
-                                setMsg({ type: 'success', text: res.data.message });
-                            } catch (err) {
-                                setMsg({ type: 'error', text: err.response?.data?.error || 'Recovery failed.' });
-                            }
-                        }} className="flex flex-col gap-[24px]">
-                            <div className="flex flex-col gap-[8px]">
-                                <label className="text-[12px] font-medium text-[#9CA3AF] uppercase tracking-widest">Team ID</label>
-                                <select
-                                    value={recoveryTeamId}
-                                    onChange={e => setRecoveryTeamId(e.target.value)}
-                                    className="w-full px-[16px] py-[12px] bg-[#111827] border border-[#1F2937] rounded-[8px] text-[14px] text-[#F9FAFB] focus:border-[#7C3AED] focus:outline-none transition-all"
-                                    required
-                                >
-                                    <option value="">Select team...</option>
-                                    {teams.map(t => (
-                                        <option key={t.teamId} value={t.teamId}>{t.teamName} ({t.teamId})</option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div className="grid grid-cols-2 gap-[16px]">
-                                <div className="flex flex-col gap-[8px]">
-                                    <label className="text-[12px] font-medium text-[#9CA3AF] uppercase tracking-widest">Role</label>
-                                    <select
-                                        value={recoveryRole}
-                                        onChange={e => setRecoveryRole(e.target.value)}
-                                        className="w-full px-[16px] py-[12px] bg-[#111827] border border-[#1F2937] rounded-[8px] text-[14px] text-[#F9FAFB] focus:border-[#7C3AED] focus:outline-none transition-all"
-                                    >
-                                        <option value="cto">CTO</option>
-                                        <option value="cfo">CFO</option>
-                                        <option value="pm">PM</option>
-                                    </select>
-                                </div>
-                                <div className="flex flex-col gap-[8px]">
-                                    <label className="text-[12px] font-medium text-[#9CA3AF] uppercase tracking-widest">Round</label>
-                                    <select
-                                        value={recoveryYear}
-                                        onChange={e => setRecoveryYear(Number(e.target.value))}
-                                        className="w-full px-[16px] py-[12px] bg-[#111827] border border-[#1F2937] rounded-[8px] text-[14px] text-[#F9FAFB] focus:border-[#7C3AED] focus:outline-none transition-all"
-                                    >
-                                        {[0,1,2,3,4].map(y => (
-                                            <option key={y} value={y}>Round {y + 1}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                            </div>
-                            <Button type="submit" className="w-full">
-                                <FiRefreshCw size={16} className="mr-[8px]" /> Recover Session
-                            </Button>
-                        </form>
-                    </Card>
-
-                    <Card className="p-[24px] border-amber-500/20 bg-amber-500/5">
-                        <div className="flex items-start gap-[12px]">
-                            <FiAlertCircle className="text-amber-400 shrink-0 mt-[2px]" size={18} />
-                            <div>
-                                <p className="text-[14px] font-bold text-amber-400 mb-[4px]">Important</p>
-                                <p className="text-[13px] text-[#9CA3AF] leading-relaxed">This will clear the disqualification flag and allow the player to re-enter the round. It will NOT recover their previous answers — they start fresh. Only use this for legitimate technical issues (browser crash, network failure).</p>
-                            </div>
-                        </div>
-                    </Card>
-                </div>
             )}
         </div>
       </main>

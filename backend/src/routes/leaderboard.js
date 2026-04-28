@@ -32,7 +32,7 @@ router.get('/', async (req, res) => {
       let totalTimeSpent = 0;
       let anyTimeSpent = false;
       
-      for (let i = 0; i <= 4; i++) {
+      for (let i = 0; i <= 6; i++) {
           const rd = team.gameState?.[`year${i}`];
           if (rd && rd.answers) {
               const ctoDone = Object.keys(rd.answers.cto || {}).length > 0;
@@ -76,6 +76,8 @@ router.get('/', async (req, res) => {
           year2Points: getRoundPoints(2),
           year3Points: getRoundPoints(3),
           year4Points: getRoundPoints(4),
+          year5Points: getRoundPoints(5),
+          year6Points: getRoundPoints(6),
           status: team.eventStatus,
           scoreSum: scoreSum, // Use for sorting
           cumulativeProfit: team.finalScore?.cumulativeProfit || 0,
@@ -145,6 +147,61 @@ router.get('/team/:teamId', async (req, res) => {
       currentYear: team.currentYear,
       status: team.eventStatus
     });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/leaderboard/fun
+ * Get Fun Round leaderboard
+ */
+router.get('/fun', async (req, res) => {
+  try {
+    const cacheKey = 'global:leaderboard:fun';
+    
+    if (isRedisReady()) {
+      const cached = await redisClient.get(cacheKey);
+      if (cached) return res.status(200).json(JSON.parse(cached));
+    }
+
+    const teams = await Team.find(
+      { teamId: { $ne: 'ADMIN-EVENT-2026' } },
+      'teamId teamName gameState funPoints createdAt'
+    )
+      .sort({ funPoints: -1, createdAt: 1 })
+      .limit(100);
+
+    const leaderboard = teams.map((team, idx) => {
+      const getFunPoints = (yearIdx) => {
+          const yd = team.gameState?.[`year${yearIdx}`];
+          return yd?.scores?.fun || 0;
+      };
+
+      return {
+          teamId: team.teamId,
+          teamName: team.teamName,
+          funPoints: team.funPoints || 0,
+          f1: getFunPoints(5),
+          f2: getFunPoints(6),
+          f3: getFunPoints(7),
+          f4: getFunPoints(8),
+          f5: getFunPoints(9),
+          rank: idx + 1
+      };
+    });
+
+    const result = {
+      timestamp: new Date().toISOString(),
+      totalTeams: leaderboard.length,
+      leaderboard
+    };
+
+    if (isRedisReady()) {
+      await redisClient.setEx(cacheKey, 5, JSON.stringify(result));
+    }
+
+    res.status(200).json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

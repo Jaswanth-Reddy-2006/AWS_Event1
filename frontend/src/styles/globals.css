@@ -31,10 +31,13 @@ body {
 
 /* Animations */
 @keyframes bounce-slow {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: translateY(-5%);
     animation-timing-function: cubic-bezier(0.8, 0, 1, 1);
   }
+
   50% {
     transform: translateY(0);
     animation-timing-function: cubic-bezier(0, 0, 0.2, 1);
@@ -42,20 +45,47 @@ body {
 }
 
 @keyframes shake {
-  0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-5px); }
-  75% { transform: translateX(5px); }
+
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  25% {
+    transform: translateX(-5px);
+  }
+
+  75% {
+    transform: translateX(5px);
+  }
 }
 
 @keyframes float {
-  0% { transform: translateY(0px); }
-  50% { transform: translateY(-10px); }
-  100% { transform: translateY(0px); }
+  0% {
+    transform: translateY(0px);
+  }
+
+  50% {
+    transform: translateY(-10px);
+  }
+
+  100% {
+    transform: translateY(0px);
+  }
 }
 
 @keyframes pulse-glow {
-  0%, 100% { opacity: 0.5; filter: blur(120px); }
-  50% { opacity: 0.8; filter: blur(160px); }
+
+  0%,
+  100% {
+    opacity: 0.5;
+    filter: blur(120px);
+  }
+
+  50% {
+    opacity: 0.8;
+    filter: blur(160px);
+  }
 }
 
 .animate-bounce-slow {
@@ -78,14 +108,17 @@ body {
 ::-webkit-scrollbar {
   width: 6px;
 }
+
 ::-webkit-scrollbar-track {
   background: #0B0F14;
 }
+
 ::-webkit-scrollbar-thumb {
   background: #111827;
   border-radius: 10px;
   border: 1px solid #1F2937;
 }
+
 ::-webkit-scrollbar-thumb:hover {
   background: #7C3AED;
 }
@@ -114,14 +147,21 @@ body {
 .custom-scrollbar::-webkit-scrollbar {
   width: 4px;
 }
+
 .custom-scrollbar::-webkit-scrollbar-thumb {
   background: #1F2937;
 }
+
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #7C3AED;
 }
 
 @layer utilities {
-  .z-99999 { z-index: 99999; }
-  .z-10001 { z-index: 10001; }
+  .z-99999 {
+    z-index: 99999;
+  }
+
+  .z-10001 {
+    z-index: 10001;
+  }
 }

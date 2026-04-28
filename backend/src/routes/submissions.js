@@ -11,8 +11,9 @@ const {
   checkSuspiciousPatterns,
   formatCompanyState
 } = require('../utils/helpers');
-const {
-  calculateNextYearStartingState,
+const { 
+  calculateYear2StartingState,
+  calculateYear3StartingState,
   applyMarketEvent
 } = require('../utils/cascadeLogic');
 const { redisClient, isRedisReady } = require('../utils/redis');
@@ -27,14 +28,32 @@ router.post('/:year', verifyToken, async (req, res) => {
     const { answers } = req.body;
     const { teamId, userId, role } = req.user;
 
-    if (![0, 1, 2, 3, 4].includes(parseInt(year))) {
+    if (![0, 1, 2, 3, 4, 5, 6].includes(parseInt(year))) {
       return res.status(400).json({ error: 'Invalid year' });
+    }
+
+    // Check if round is currently active
+    const GameSettings = require('../models/GameSettings');
+    const settings = await GameSettings.findOne({ id: 'global_settings' });
+    if (!settings || !settings.isRoundActive || settings.currentRound !== parseInt(year)) {
+      return res.status(403).json({ error: 'Round is not currently active. Submission rejected.' });
+    }
+
+    // Check 30-minute timer enforcement
+    if (settings.roundStartedAt) {
+      const elapsed = (Date.now() - new Date(settings.roundStartedAt).getTime()) / 1000 / 60;
+      if (elapsed > 30) {
+        return res.status(403).json({ error: 'Round time limit exceeded. Submission rejected.' });
+      }
     }
 
     // Get team and questions
     const [team, questions] = await Promise.all([
       Team.findOne({ teamId }),
-      Question.find({ year: parseInt(year), role })
+      Question.find({ 
+        year: parseInt(year), 
+        $or: [{ role }, { role: 'fun' }]
+      })
     ]);
 
     if (!team) return res.status(404).json({ error: 'Team not found' });
@@ -47,7 +66,19 @@ router.post('/:year', verifyToken, async (req, res) => {
       questionScores[question.questionId] = scoreAnswer(question, userAnswer);
     }
 
-    const roleScore = calculateRoleScore(questionScores);
+    let roleScore = calculateRoleScore(questionScores);
+
+    // SPEED-BASED SCORING FOR FUN ROUNDS (Year >= 5)
+    if (parseInt(year) >= 5) {
+      // Count how many teams have already submitted 'fun' for this specific year
+      const submissionRank = await Team.countDocuments({
+        [`gameState.year${year}.answers.fun`]: { $exists: true, $ne: {} }
+      });
+
+      // Award points based on rank: 1st=100, 2nd=95, 3rd=90, etc.
+      roleScore = Math.max(0, 100 - (submissionRank * 5));
+      console.log(`[FUN ROUND] Team ${teamId} rank ${submissionRank + 1} awarded ${roleScore} pts`);
+    }
     
     // Create submission record
     const submissionId = generateSubmissionId();
@@ -67,11 +98,12 @@ router.post('/:year', verifyToken, async (req, res) => {
 
     await submission.save();
 
-    // Update team game state
+    // Update team game state — store both answers AND questionScores for admin visibility
     const yearKey = `year${year}`;
     const updateData = {
       [`gameState.${yearKey}.answers.${role}`]: answers,
       [`gameState.${yearKey}.scores.${role}`]: roleScore,
+      [`gameState.${yearKey}.questionScores.${role}`]: questionScores,
       [`gameState.${yearKey}.timeSpent.${role}`]: req.body.timeSpent || 0,
       [`gameState.${yearKey}.submittedAt`]: new Date()
     };
@@ -100,7 +132,6 @@ router.post('/:year', verifyToken, async (req, res) => {
     // Check if ALL teams have completed all 3 roles for this round
     // If so, automatically mark the round as done
     try {
-      const GameSettings = require('../models/GameSettings');
       const allTeams = await Team.find({ teamId: { $ne: 'ADMIN-EVENT-2026' } });
       const allTeamsComplete = allTeams.length > 0 && allTeams.every(t => {
         const yd = t.gameState?.[yearKey];
@@ -133,45 +164,65 @@ router.post('/:year', verifyToken, async (req, res) => {
   }
 });
 
+
 /**
  * Process year completion and cascade to next year
  */
 async function processYearCompletion(teamId, year) {
   const team = await Team.findOne({ teamId });
   const yearKey = `year${year}`;
-  const FINAL_YEAR = 4;
-  const TOTAL_YEARS = 5;
 
-  const roundTotal =
+  // Aggregate all role scores (Sum of all roles for round total)
+  const roundTotal = 
     (team.gameState[yearKey].scores.cto || 0) +
     (team.gameState[yearKey].scores.cfo || 0) +
-    (team.gameState[yearKey].scores.pm || 0);
-
+    (team.gameState[yearKey].scores.pm || 0) +
+    (team.gameState[yearKey].scores.fun || 0);
+  
+  const participantsCount = (parseInt(year) >= 5) ? 3 : 3; // Keep consistent for consistency or divide by roles that submitted
   const avgTimeSpent = (
     (team.gameState[yearKey].timeSpent?.cto || 0) +
     (team.gameState[yearKey].timeSpent?.cfo || 0) +
-    (team.gameState[yearKey].timeSpent?.pm || 0)
+    (team.gameState[yearKey].timeSpent?.pm || 0) +
+    (team.gameState[yearKey].timeSpent?.fun || 0)
   ) / 3;
 
+  // Output Time is the raw average time spent (used for tie-breaking)
   const outputTime = Math.round(avgTimeSpent);
 
   if (!team.gameState[yearKey].timeSpent) {
-    team.gameState[yearKey].timeSpent = { cto: 0, cfo: 0, pm: 0 };
+      team.gameState[yearKey].timeSpent = { cto: 0, cfo: 0, pm: 0, fun: 0 };
   }
   team.gameState[yearKey].timeSpent.outputTime = outputTime;
-  team.gameState[yearKey].scores.roundAvg = roundTotal;
+  team.gameState[yearKey].scores.roundAvg = roundTotal; 
 
   team.points = (team.points || 0) + roundTotal;
 
-  const defaultCompanyStates = {
-    0: { monthlyBill: 8500, monthlyRevenue: 10000, cumulativeProfit: -30000, runwayMonths: 14 },
-    1: { monthlyBill: 7400, monthlyRevenue: 12000, cumulativeProfit: -26400, runwayMonths: 12 },
-  };
-
-  if (defaultCompanyStates[year] && (!team.gameState[yearKey].companyState || !team.gameState[yearKey].companyState.monthlyBill)) {
-    team.gameState[yearKey].companyState = defaultCompanyStates[year];
+  // Separate Fun Points for the dedicated Fun Leaderboard
+  if (parseInt(year) >= 5) {
+    team.funPoints = (team.funPoints || 0) + (team.gameState[yearKey].scores.fun || 0);
   }
 
+  // For Fun Rounds, we skip tycoon logic (revenue, bill, runway etc)
+  if (parseInt(year) >= 5) {
+     if (!team.gameState[yearKey].companyState) {
+         team.gameState[yearKey].companyState = { ...team.gameState[`year${parseInt(year)-1}`]?.companyState } || {};
+     }
+     await team.save();
+     return;
+  }
+
+  // Initialize company state for year 1
+  if (year === 1) {
+    team.gameState[yearKey].companyState = {
+      monthlyBill: 7400, // After cost cuts from answers
+      monthlyRevenue: 12000,
+      cumulativeProfit: -26400,
+      runwayMonths: 12
+    };
+  }
+
+  // Apply market event
   const event = await applyMarketEvent(teamId, year, `EVENT_YEAR${year}`);
   if (event && event.impact) {
     team.gameState[yearKey].marketEvent = {
@@ -180,44 +231,50 @@ async function processYearCompletion(teamId, year) {
       description: event.event.description
     };
 
-    if (team.gameState[yearKey].companyState) {
-      team.gameState[yearKey].companyState.cumulativeProfit += event.impact.penalty;
-    }
+    const yearState = team.gameState[yearKey].companyState;
+    yearState.cumulativeProfit += event.impact.penalty;
   }
 
-  if (year < FINAL_YEAR) {
+  // Calculate next year starting state if not final year
+  if (year < 3) {
     const nextYear = year + 1;
     const nextYearKey = `year${nextYear}`;
-
-    if (team.gameState[yearKey].companyState) {
-      team.gameState[nextYearKey].companyState =
-        await calculateNextYearStartingState(year, team.gameState[yearKey].answers, team.gameState[yearKey].companyState);
+    
+    if (year === 1) {
+      team.gameState[nextYearKey].companyState = 
+        await calculateYear2StartingState(team.gameState[yearKey].answers, team.gameState[yearKey].companyState);
+    } else if (year === 2) {
+      team.gameState[nextYearKey].companyState = 
+        await calculateYear3StartingState(team.gameState[yearKey].answers, team.gameState[yearKey].companyState);
     }
 
     team.currentYear = nextYear;
   } else {
+    // Final year completed
     team.eventStatus = 'completed';
   }
 
-  const currentProfit = team.gameState[yearKey].companyState?.cumulativeProfit || 0;
-
+  const currentProfit = team.gameState[yearKey].companyState.cumulativeProfit || 0;
+  
   if (!team.finalScore) {
-    team.finalScore = { cumulativeProfit: currentProfit, totalScore: roundTotal };
+      team.finalScore = { cumulativeProfit: currentProfit, totalScore: roundAvg };
   } else {
-    team.finalScore.cumulativeProfit = currentProfit;
-  }
-
-  if (year === FINAL_YEAR) {
-    let totalScore = 0;
-    let roleCount = 0;
-    for (let y = 0; y <= FINAL_YEAR; y++) {
-      const yd = team.gameState[`year${y}`];
-      if (yd?.scores) {
-        totalScore += (yd.scores.cto || 0) + (yd.scores.cfo || 0) + (yd.scores.pm || 0);
-        roleCount += 3;
+      team.finalScore.cumulativeProfit = currentProfit;
+      if (year >= 3) {
+        let total = 0;
+        let count = 0;
+        for(let i=1; i<=6; i++) {
+           const yk = `year${i}`;
+           if (team.gameState[yk]) {
+              total += (team.gameState[yk].scores?.cto || 0) + 
+                       (team.gameState[yk].scores?.cfo || 0) + 
+                       (team.gameState[yk].scores?.pm || 0) +
+                       (team.gameState[yk].scores?.fun || 0);
+              count += 3;
+           }
+        }
+        team.finalScore.totalScore = count > 0 ? Math.round(total / count) : 0;
       }
-    }
-    team.finalScore.totalScore = roleCount > 0 ? Math.round(totalScore / roleCount) : 0;
   }
 
   await team.save();
@@ -273,6 +330,29 @@ router.post('/disqualify/:year', verifyToken, async (req, res) => {
     await Team.updateOne({ teamId }, updateData);
 
     res.status(200).json({ success: true, message: 'User disqualified for this round' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/submissions/report-screen-out
+ * Report a fullscreen exit violation
+ */
+router.post('/report-screen-out', verifyToken, async (req, res) => {
+  try {
+    const { teamId } = req.user;
+    
+    await Team.updateOne(
+      { teamId },
+      { $inc: { 'fraudFlags.screenOuts': 1 } }
+    );
+
+    const team = await Team.findOne({ teamId });
+    res.status(200).json({ 
+      success: true, 
+      count: team.fraudFlags?.screenOuts || 0 
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

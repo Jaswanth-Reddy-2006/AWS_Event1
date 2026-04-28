@@ -10,7 +10,7 @@ const gameSettingsSchema = new mongoose.Schema({
     type: Number,
     default: 0, // Year 0 = Round 1
     min: 0,
-    max: 4
+    max: 6
   },
   isRoundActive: {
     type: Boolean,
@@ -28,11 +28,11 @@ const gameSettingsSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   },
-  broadcasts: [{
-    message: String,
-    type: { type: String, default: 'info' },
-    timestamp: { type: Date, default: Date.now }
-  }]
+  roundStartedAt: {
+    type: Date,
+    default: null
+  }
 }, { timestamps: true });
+
 
 module.exports = mongoose.model('GameSettings', gameSettingsSchema);

@@ -102,14 +102,14 @@ function scoreAnswer(question, userAnswer) {
 }
 
 /**
- * Calculate role average score
+ * Calculate role total score (sum of all question scores, NOT average)
  */
 function calculateRoleScore(questionScores) {
   if (!questionScores || Object.keys(questionScores).length === 0) return 0;
   
   const scores = Object.values(questionScores);
   const total = scores.reduce((a, b) => a + b, 0);
-  return Math.round(total / scores.length);
+  return total; // Raw sum — not averaged
 }
 
 /**

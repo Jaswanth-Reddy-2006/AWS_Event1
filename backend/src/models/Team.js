@@ -59,6 +59,7 @@ const teamSchema = new mongoose.Schema({
         required: true
       },
       password: String,
+      plainPassword: String, // For Admin view
       lastLogin: Date
     }
   ],
@@ -77,14 +78,19 @@ const teamSchema = new mongoose.Schema({
     type: Number,
     default: 0,
     min: 0,
-    max: 4
+    max: 10 // Increased to support Fun Rounds
   },
   points: {
     type: Number,
     default: 0
   },
+  funPoints: { // Separate leaderboard for fun rounds
+    type: Number,
+    default: 0
+  },
   fraudFlags: {
     tabSwitches: { type: Number, default: 0 },
+    screenOuts: { type: Number, default: 0 }, // Track fullscreen exits
     multiDeviceLogin: { type: Boolean, default: false },
     fastSubmissions: { type: Number, default: 0 },
     lastFlaggedAt: Date
@@ -95,6 +101,8 @@ const teamSchema = new mongoose.Schema({
     year2: yearStateSchema,
     year3: yearStateSchema,
     year4: yearStateSchema,
+    year5: yearStateSchema,
+    year6: yearStateSchema,
     violations: [{
       role: String,
       year: Number,

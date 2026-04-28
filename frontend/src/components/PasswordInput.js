@@ -5,9 +5,9 @@ import { AiOutlineEye, AiOutlineEyeInvisible } from 'react-icons/ai';
  * PasswordInput Component
  * Shows/hides password with strength indicator
  */
-export default function PasswordInput({ 
-  value, 
-  onChange, 
+export default function PasswordInput({
+  value,
+  onChange,
   placeholder = 'Password',
   showStrength = false,
   required = false,
@@ -42,7 +42,7 @@ export default function PasswordInput({
           )}
         </button>
       </div>
-      
+
       {/* Password strength indicator */}
       {showStrength && value && (
         <div className="mt-8 p-16 bg-brand-elevated border border-brand-border rounded-lg text-12 animate-in fade-in duration-300">

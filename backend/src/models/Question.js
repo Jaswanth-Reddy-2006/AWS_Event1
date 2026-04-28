@@ -10,13 +10,13 @@ const questionSchema = new mongoose.Schema({
   year: {
     type: Number,
     required: true,
-    enum: [0, 1, 2, 3, 4],
+    enum: [0, 1, 2, 3, 4, 5, 6],
     index: true
   },
   role: {
     type: String,
     required: true,
-    enum: ['cto', 'cfo', 'pm'],
+    enum: ['cto', 'cfo', 'pm', 'fun'],
     index: true
   },
   questionNumber: Number,

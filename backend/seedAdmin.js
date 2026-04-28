@@ -38,6 +38,7 @@ async function seedAdmin() {
           name: memberName,
           role: role,
           password: hashedPassword,
+          plainPassword: password,
           joinedAt: new Date()
         }],
         currentYear: 0,

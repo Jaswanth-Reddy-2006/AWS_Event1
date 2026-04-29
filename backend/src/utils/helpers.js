@@ -97,8 +97,10 @@ function scoreAnswer(question, userAnswer) {
       return incorrectScore;
 
     case 'text':
+    case 'shorttext':
       if (!userAnswer || typeof userAnswer !== 'string') return incorrectScore;
-      return userAnswer.trim().toLowerCase() === String(question.correctAnswer).trim().toLowerCase() ? fullScore : incorrectScore;
+      const normalize = (s) => String(s).replace(/\s+/g, '').toLowerCase();
+      return normalize(userAnswer) === normalize(question.correctAnswer) ? fullScore : incorrectScore;
 
     default:
       return userAnswer === question.correctAnswer ? fullScore : incorrectScore;

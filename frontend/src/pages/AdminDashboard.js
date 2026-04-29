@@ -4,7 +4,6 @@ import { useNavigate, useParams } from 'react-router-dom';
 import Leaderboard from '../components/Leaderboard';
 import FunLeaderboard from '../components/FunLeaderboard';
 import LightRays from '../components/LightRays';
-import AppleGlow from '../components/AppleGlow';
 import Button from '../components/Button';
 import Card from '../components/Card';
 import { adminAPI } from '../utils/api';
@@ -23,7 +22,6 @@ import {
     FiEye,
     FiEyeOff,
     FiLock,
-    FiClock,
     FiTrendingUp,
     FiUser,
     FiHome,
@@ -34,10 +32,12 @@ import {
     FiAward,
     FiPlusSquare,
     FiCopy,
-    FiCheckSquare,
     FiRadio,
     FiSend,
     FiRefreshCw,
+    FiChevronRight,
+    FiChevronLeft,
+    FiSkipForward,
 } from 'react-icons/fi';
 
 const AdminDashboard = () => {
@@ -116,9 +116,10 @@ const AdminDashboard = () => {
 
   useEffect(() => {
     let interval;
-    if (activeTab.startsWith('fr') && settings?.isRoundActive) {
+    const isFunTabActive = menuItems.find(m => m.id === activeTab)?.isFun;
+    if (isFunTabActive && settings?.isRoundActive) {
       fetchActiveQuestionStats();
-      interval = setInterval(fetchActiveQuestionStats, 3000);
+      interval = setInterval(fetchActiveQuestionStats, 2000);
     }
     return () => clearInterval(interval);
   }, [activeTab, settings?.isRoundActive, settings?.activeFunQuestionId]);
@@ -299,30 +300,6 @@ const AdminDashboard = () => {
             setMsg({ type: 'error', text: 'Please navigate to a round tab first.' });
             return;
         }
-        if (targetYear < settings.currentRound) {
-             setMsg({ type: 'error', text: `Cannot restart previous rounds. Use Reset Competition for a fresh start.` });
-             return;
-        }
-        if (targetYear > settings.currentRound + 1) {
-             setMsg({ type: 'error', text: `Complete Round ${settings.currentRound + 1} first.` });
-             return;
-        }
-
-        if (targetYear > 0 && targetYear === settings.currentRound + 1) {
-             const previousYear = targetYear - 1;
-             const uncompletedTeams = teams.filter(t => {
-                 const yearData = t.gameState?.[`year${previousYear}`];
-                 const ctoDone = yearData?.answers?.cto && Object.keys(yearData.answers.cto).length > 0;
-                 const cfoDone = yearData?.answers?.cfo && Object.keys(yearData.answers.cfo).length > 0;
-                 const pmDone = yearData?.answers?.pm && Object.keys(yearData.answers.pm).length > 0;
-                 return !(ctoDone && cfoDone && pmDone);
-             });
-
-             if (uncompletedTeams.length > 0) {
-                 setMsg({ type: 'error', text: `Round ${previousYear + 1} not completed by all teams yet.` });
-                 return;
-             }
-        }
     }
 
     try {
@@ -330,7 +307,11 @@ const AdminDashboard = () => {
         currentRound: targetYear,
         isRoundActive: start
       };
-      
+
+      if (start) {
+          payload.activeFunQuestionId = null;
+      }
+
       // If stopping the round, we want to immediately re-initialize it (clear progress for the round)
       if (!start) {
           payload.resetRoundData = targetYear;
@@ -361,7 +342,7 @@ const AdminDashboard = () => {
       setSettings(res.data);
       if (start) setShowInitBanner(true);
       setTimeout(() => setShowInitBanner(false), 8000);
-      setMsg({ type: 'success', text: `Mission Phase ${targetYear + 1} is now ${start ? 'LIVE — 30 min timer started' : 'STANDBY'}.` });
+      setMsg({ type: 'success', text: `${targetYear >= 5 ? `Fun Round ${targetYear - 4}` : `Round ${targetYear + 1}`} is now ${start ? 'LIVE — 20 min timer started' : 'STANDBY'}.` });
     } catch (err) {
       setMsg({ type: 'error', text: 'Operational transition failed.' });
     }
@@ -373,18 +354,18 @@ const AdminDashboard = () => {
     setNewQ({
         type: q.type || 'mcq',
         question: q.question,
-        options: q.type === 'range' ? [
+        assetUrl: q.assetUrl || '',
+        options: q.type === 'range' || q.type === 'text' || q.type === 'shorttext' ? [
             { optionId: 'A', text: '', value: 'A' },
             { optionId: 'B', text: '', value: 'B' },
             { optionId: 'C', text: '', value: 'C' },
             { optionId: 'D', text: '', value: 'D' }
         ] : q.options.length < 4 ? [...q.options, ...Array(4 - q.options.length).fill(null).map((_, i) => ({ optionId: String.fromCharCode(65 + q.options.length + i), text: '', value: String.fromCharCode(65 + q.options.length + i) }))] : q.options,
-        correctAnswer: (q.type === 'mcq' || q.type === 'truefalse') ? q.correctAnswer : 'A',
+        correctAnswer: q.correctAnswer || 'A',
         correctAnswers: q.type === 'multi-select' ? (Array.isArray(q.correctAnswer) ? q.correctAnswer : []) : [],
         range: q.type === 'range' ? q.acceptableRange || { min: 1, max: 10 } : { min: 1, max: 10 },
         scoringRubric: q.scoringRubric || { full: 10, partial: 5, incorrect: -5 }
     });
-    // Scroll to top of form
     window.scrollTo({ top: 300, behavior: 'smooth' });
   };
 
@@ -630,7 +611,7 @@ const AdminDashboard = () => {
                     <div className="flex items-center gap-[12px]">
                         <div className={`w-[10px] h-[10px] rounded-full animate-pulse ${roundTimeLeft < 300 ? 'bg-red-500' : 'bg-[#7C3AED]'}`} />
                         <span className="text-[14px] font-bold text-[#F9FAFB]">
-                            Round {(settings?.currentRound || 0) + 1} — LIVE
+                            {(settings?.currentRound || 0) >= 5 ? `Fun Round ${(settings?.currentRound || 0) - 4}` : `Round ${(settings?.currentRound || 0) + 1}`} — LIVE
                         </span>
                         <span className={`text-[18px] font-bold tabular-nums ml-[8px] ${
                             roundTimeLeft < 60 ? 'text-red-400 animate-pulse' : roundTimeLeft < 300 ? 'text-red-400' : 'text-[#F9FAFB]'
@@ -783,253 +764,324 @@ const AdminDashboard = () => {
         {/* Dynamic Content Based on Tab */}
         <div className="max-w-[1200px] mx-auto relative">
             {activeTab === 'dashboard' && (
-                <div className="flex flex-col gap-[32px] animate-in fade-in duration-500">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <h2 className="text-[32px] font-semibold text-[#F9FAFB] tracking-tight">Mission Intelligence</h2>
-                            <p className="text-[14px] text-[#9CA3AF] mt-[4px]">Real-time operational telemetry across all units.</p>
+                <div className="flex flex-col gap-[24px] animate-in fade-in duration-500">
+
+                    {/* ── LIVE ROUND BANNER ── */}
+                    <div className={`relative rounded-[16px] overflow-hidden border ${settings?.isRoundActive ? 'border-[#7C3AED]/30 bg-gradient-to-r from-[#7C3AED]/10 via-[#111827] to-[#7C3AED]/10' : 'border-[#1F2937] bg-[#111827]/80'}`}>
+                        <div className="flex flex-col md:flex-row items-center justify-between p-[24px] gap-[16px]">
+                            <div className="flex items-center gap-[16px]">
+                                <div className={`w-[48px] h-[48px] rounded-[12px] flex items-center justify-center ${settings?.isRoundActive ? 'bg-[#7C3AED] shadow-[0_0_20px_rgba(124,58,237,0.4)]' : 'bg-[#1F2937]'}`}>
+                                    {settings?.isRoundActive ? <FiRadio size={22} className="text-white animate-pulse" /> : <FiCircle size={22} className="text-[#6B7280]" />}
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-[10px]">
+                                        <h2 className="text-[22px] font-bold text-[#F9FAFB]">
+                                            {settings?.isRoundActive ? `${(settings?.currentRound || 0) >= 5 ? `Fun Round ${(settings?.currentRound || 0) - 4}` : `Round ${(settings?.currentRound || 0) + 1}`} is LIVE` : 'No Round Active'}
+                                        </h2>
+                                        {settings?.isRoundActive && <span className="w-[8px] h-[8px] bg-emerald-400 rounded-full animate-pulse" />}
+                                    </div>
+                                    <p className="text-[13px] text-[#9CA3AF] mt-[2px]">
+                                        {settings?.isRoundActive
+                                            ? `${roundStats.teamsFullyCompleted}/${teams.length} teams completed`
+                                            : `Current position: Round ${(settings?.currentRound || 0) + 1}`}
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-[16px]">
+                                {settings?.isRoundActive && roundTimeLeft !== null && (
+                                    <div className={`text-[36px] font-mono font-black tracking-wider ${roundTimeLeft < 60 ? 'text-red-400 animate-pulse' : roundTimeLeft < 300 ? 'text-amber-400' : 'text-[#F9FAFB]'}`}>
+                                        {Math.floor(roundTimeLeft / 60)}:{String(roundTimeLeft % 60).padStart(2, '0')}
+                                    </div>
+                                )}
+                                {settings?.isRoundActive && (
+                                    <button
+                                        onClick={() => handleStartStopRound(false, settings.currentRound)}
+                                        className="px-[20px] py-[10px] bg-red-500/10 hover:bg-red-500/20 text-red-400 font-bold text-[13px] rounded-[10px] border border-red-500/20 transition-all"
+                                    >
+                                        Stop Round
+                                    </button>
+                                )}
+                            </div>
                         </div>
-                        <div className="flex items-center gap-[12px]">
-                            
-                            <div className="flex items-center gap-[12px] bg-[#111827] border border-[#1F2937] px-[16px] py-[8px] rounded-[8px]">
-                                <div className="w-[8px] h-[8px] bg-[#7C3AED] rounded-full animate-pulse shadow-[0_0_8px_rgba(124,58,237,0.5)]"></div>
-                                <span className="text-[12px] font-medium text-[#9CA3AF] uppercase tracking-widest">Live Uplink</span>
+                        {settings?.isRoundActive && (
+                            <div className="h-[3px] bg-[#1F2937]">
+                                <div className="h-full bg-gradient-to-r from-[#7C3AED] to-[#3b82f6] transition-all duration-1000" style={{ width: `${roundTimeLeft !== null ? (roundTimeLeft / (20 * 60)) * 100 : 100}%` }} />
+                            </div>
+                        )}
+                    </div>
+
+                    {/* ── STATS ROW ── */}
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-[16px]">
+                        <div className="bg-[#111827]/60 border border-[#1F2937] rounded-[12px] p-[20px]">
+                            <div className="flex items-center justify-between mb-[12px]">
+                                <span className="text-[11px] text-[#6B7280] uppercase tracking-widest font-medium">Teams</span>
+                                <FiUsers size={16} className="text-[#7C3AED]" />
+                            </div>
+                            <div className="text-[28px] font-bold text-[#F9FAFB]">{teams.length}</div>
+                            <div className="text-[12px] text-[#6B7280] mt-[4px]">{teams.length * 3} participants</div>
+                        </div>
+                        <div className="bg-[#111827]/60 border border-[#1F2937] rounded-[12px] p-[20px]">
+                            <div className="flex items-center justify-between mb-[12px]">
+                                <span className="text-[11px] text-[#6B7280] uppercase tracking-widest font-medium">Total Points</span>
+                                <FiAward size={16} className="text-amber-500" />
+                            </div>
+                            <div className="text-[28px] font-bold text-[#F9FAFB]">
+                                {teams.reduce((acc, team) => {
+                                    let sum = 0;
+                                    for (let i = 0; i <= 9; i++) {
+                                        const yd = team.gameState?.[`year${i}`];
+                                        if (yd?.scores) sum += (yd.scores.cto || 0) + (yd.scores.cfo || 0) + (yd.scores.pm || 0);
+                                    }
+                                    return acc + sum;
+                                }, 0).toLocaleString()}
+                            </div>
+                            <div className="text-[12px] text-[#6B7280] mt-[4px]">across all rounds</div>
+                        </div>
+                        <div className="bg-[#111827]/60 border border-[#1F2937] rounded-[12px] p-[20px]">
+                            <div className="flex items-center justify-between mb-[12px]">
+                                <span className="text-[11px] text-[#6B7280] uppercase tracking-widest font-medium">Completion</span>
+                                <FiCheckCircle size={16} className="text-emerald-500" />
+                            </div>
+                            <div className="text-[28px] font-bold text-[#F9FAFB]">
+                                {teams.length > 0 ? Math.round((roundStats.teamsFullyCompleted / teams.length) * 100) : 0}%
+                            </div>
+                            <div className="w-full bg-[#1F2937] h-[4px] rounded-full mt-[8px] overflow-hidden">
+                                <div className="h-full bg-emerald-500 rounded-full transition-all duration-700" style={{ width: `${teams.length > 0 ? (roundStats.teamsFullyCompleted / teams.length) * 100 : 0}%` }} />
+                            </div>
+                        </div>
+                        <div className="bg-[#111827]/60 border border-[#1F2937] rounded-[12px] p-[20px]">
+                            <div className="flex items-center justify-between mb-[12px]">
+                                <span className="text-[11px] text-[#6B7280] uppercase tracking-widest font-medium">Role Progress</span>
+                                <FiActivity size={16} className="text-sky-400" />
+                            </div>
+                            <div className="flex items-center gap-[16px] mt-[4px]">
+                                {[
+                                    { label: 'CTO', count: roundStats.ctoCompleted, color: '#7C3AED' },
+                                    { label: 'CFO', count: roundStats.cfoCompleted, color: '#f59e0b' },
+                                    { label: 'PM', count: roundStats.pmCompleted, color: '#10b981' },
+                                ].map(r => (
+                                    <div key={r.label} className="flex-1 text-center">
+                                        <div className="text-[20px] font-bold text-[#F9FAFB]">{r.count}</div>
+                                        <div className="text-[9px] uppercase font-bold mt-[2px]" style={{ color: r.color }}>{r.label}</div>
+                                    </div>
+                                ))}
                             </div>
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-[20px] mb-[32px]">
-                        <Card className="bg-[#111827]/50 border border-[#1F2937] p-[20px]">
-                            <div className="flex items-center gap-[16px]">
-                                <div className="p-[12px] bg-purple-500/10 rounded-[12px] text-purple-500">
-                                    <FiUsers size={24} />
-                                </div>
-                                <div>
-                                    <span className="text-[12px] text-[#9CA3AF] uppercase tracking-widest block">Active Units</span>
-                                    <div className="text-[24px] font-bold text-white">
-                                        {roundStats.onlinePeople} <span className="text-[14px] text-[#9CA3AF] font-normal">/ {roundStats.totalParticipants}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </Card>
-                        <Card className="bg-[#111827]/50 border border-[#1F2937] p-[20px]">
-                            <div className="flex items-center gap-[16px]">
-                                <div className="p-[12px] bg-blue-500/10 rounded-[12px] text-blue-500">
-                                    <FiCheckCircle size={24} />
-                                </div>
-                                <div>
-                                    <span className="text-[12px] text-[#9CA3AF] uppercase tracking-widest block">Role Progress</span>
-                                    <div className="flex gap-[12px] mt-[4px]">
-                                        <div className="text-center">
-                                            <div className="text-[14px] font-bold text-white">{roundStats.ctoCompleted}</div>
-                                            <div className="text-[8px] text-[#9CA3AF] uppercase font-bold">CTO</div>
+                    {/* ── ROUNDS OVERVIEW ── */}
+                    <div>
+                        <h3 className="text-[16px] font-semibold text-[#F9FAFB] mb-[16px]">Rounds Overview</h3>
+                        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-[14px]">
+                            {/* Main Rounds 1-5 */}
+                            {[0, 1, 2, 3, 4].map(yr => {
+                                const isActive = settings?.isRoundActive && settings?.currentRound === yr;
+
+                                const roleCounts = { cto: 0, cfo: 0, pm: 0 };
+                                teams.forEach(t => {
+                                    const yd = t.gameState?.[`year${yr}`];
+                                    if (yd?.answers?.cto && Object.keys(yd.answers.cto).length > 0) roleCounts.cto++;
+                                    if (yd?.answers?.cfo && Object.keys(yd.answers.cfo).length > 0) roleCounts.cfo++;
+                                    if (yd?.answers?.pm && Object.keys(yd.answers.pm).length > 0) roleCounts.pm++;
+                                });
+                                const totalDone = roleCounts.cto + roleCounts.cfo + roleCounts.pm;
+                                const totalPossible = teams.length * 3;
+                                const pct = totalPossible > 0 ? (totalDone / totalPossible) * 100 : 0;
+                                const hasData = totalDone > 0;
+
+                                return (
+                                    <div
+                                        key={yr}
+                                        onClick={() => navigate(`/admin/r${yr + 1}`)}
+                                        className={`rounded-[14px] border p-[16px] cursor-pointer transition-all hover:scale-[1.02] ${
+                                            isActive ? 'border-[#7C3AED]/40 bg-[#7C3AED]/5 shadow-[0_0_20px_rgba(124,58,237,0.1)]'
+                                            : hasData ? 'border-emerald-500/20 bg-emerald-500/5'
+                                            : 'border-[#1F2937] bg-[#111827]/60'
+                                        }`}
+                                    >
+                                        <div className="flex items-center justify-between mb-[14px]">
+                                            <div className="flex items-center gap-[8px]">
+                                                {isActive && <span className="w-[8px] h-[8px] bg-[#7C3AED] rounded-full animate-pulse shadow-[0_0_8px_rgba(124,58,237,0.5)]" />}
+                                                {!isActive && hasData && <FiCheckCircle size={14} className="text-emerald-400" />}
+                                                <span className="text-[15px] font-bold text-[#F9FAFB]">Round {yr + 1}</span>
+                                            </div>
+                                            <span className={`text-[10px] font-bold uppercase px-[8px] py-[2px] rounded-full ${
+                                                isActive ? 'bg-[#7C3AED]/20 text-[#7C3AED]'
+                                                : hasData ? 'bg-emerald-500/10 text-emerald-400'
+                                                : 'bg-[#1F2937] text-[#6B7280]'
+                                            }`}>
+                                                {isActive ? 'LIVE' : hasData ? 'PLAYED' : 'READY'}
+                                            </span>
                                         </div>
-                                        <div className="text-center">
-                                            <div className="text-[14px] font-bold text-white">{roundStats.cfoCompleted}</div>
-                                            <div className="text-[8px] text-[#9CA3AF] uppercase font-bold">CFO</div>
+
+                                        <div className="flex gap-[6px] mb-[12px]">
+                                            {[
+                                                { label: 'CTO', count: roleCounts.cto, color: '#7C3AED' },
+                                                { label: 'CFO', count: roleCounts.cfo, color: '#f59e0b' },
+                                                { label: 'PM', count: roleCounts.pm, color: '#10b981' },
+                                            ].map(r => (
+                                                <div key={r.label} className="flex-1 bg-[#0B0F14] rounded-[8px] py-[8px] text-center border border-[#1F2937]/50">
+                                                    <div className="text-[9px] font-bold uppercase tracking-wider" style={{ color: r.color }}>{r.label}</div>
+                                                    <div className="text-[14px] font-bold text-[#F9FAFB] mt-[2px]">{r.count}<span className="text-[11px] text-[#6B7280] font-normal">/{teams.length}</span></div>
+                                                </div>
+                                            ))}
                                         </div>
-                                        <div className="text-center">
-                                            <div className="text-[14px] font-bold text-white">{roundStats.pmCompleted}</div>
-                                            <div className="text-[8px] text-[#9CA3AF] uppercase font-bold">PM</div>
+
+                                        <div className="flex items-center gap-[8px]">
+                                            <div className="flex-1 bg-[#1F2937] h-[4px] rounded-full overflow-hidden">
+                                                <div className={`h-full rounded-full transition-all duration-700 ${hasData ? 'bg-emerald-500' : 'bg-[#7C3AED]'}`} style={{ width: `${pct}%` }} />
+                                            </div>
+                                            <span className="text-[10px] font-bold text-[#6B7280]">{Math.round(pct)}%</span>
                                         </div>
                                     </div>
-                                </div>
-                            </div>
-                        </Card>
-                        <Card className="bg-[#111827]/50 border border-[#1F2937] p-[20px]">
-                            <div className="flex items-center gap-[16px]">
-                                <div className="p-[12px] bg-emerald-500/10 rounded-[12px] text-emerald-500">
-                                    <FiCheckSquare size={24} />
-                                </div>
-                                <div>
-                                    <span className="text-[12px] text-[#9CA3AF] uppercase tracking-widest block">Teams Ready</span>
-                                    <div className="text-[24px] font-bold text-white">
-                                        {roundStats.teamsFullyCompleted} <span className="text-[14px] text-[#9CA3AF] font-normal">/ {roundStats.totalTeams}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </Card>
-                        <Card className="bg-[#111827]/50 border border-[#1F2937] p-[20px]">
-                            <div className="flex items-center gap-[16px]">
-                                <div className="p-[12px] bg-amber-500/10 rounded-[12px] text-amber-500">
-                                    <FiClock size={24} />
-                                </div>
-                                <div>
-                                    <span className="text-[12px] text-[#9CA3AF] uppercase tracking-widest block">Round Timer</span>
-                                    <div className="text-[24px] font-bold text-white">
-                                        {settings?.isRoundActive ? 'ACTIVE' : 'STANDBY'}
-                                    </div>
-                                </div>
-                            </div>
-                        </Card>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-[24px] mb-[48px]">
-                        <Card className="flex flex-col justify-between relative overflow-hidden group border border-[#1F2937] hover:border-[#7C3AED]/30 transition-all bg-[#0B0F14]">
-                            <div className="relative z-10">
-                                <span className="text-[12px] font-medium text-[#7C3AED] uppercase tracking-widest block mb-[12px]">Cumulative points</span>
-                                <span className="text-[40px] font-bold text-[#F9FAFB] tracking-tight">
-                                    {teams.reduce((acc, team) => {
-                                        let sum = 0;
-                                        // Standard Rounds
-                                        for (let i = 0; i <= 9; i++) {
-                                            const yd = team.gameState?.[`year${i}`];
-                                            if (yd?.scores) {
-                                                sum += (yd.scores.cto || 0) + (yd.scores.cfo || 0) + (yd.scores.pm || 0) + (yd.scores.fun || 0);
-                                            }
+                                );
+                            })}
+
+                            {/* Fun Round - single card for all fun rounds */}
+                            {(() => {
+                                const isFunActive = settings?.isRoundActive && settings?.currentRound >= 5 && settings?.currentRound <= 8;
+                                const funYears = [5, 6, 7, 8];
+                                let funTotal = 0;
+                                funYears.forEach(yr => {
+                                    teams.forEach(t => {
+                                        const yd = t.gameState?.[`year${yr}`];
+                                        if (yd?.answers) {
+                                            if (yd.answers.cto && Object.keys(yd.answers.cto).length > 0) funTotal++;
+                                            if (yd.answers.cfo && Object.keys(yd.answers.cfo).length > 0) funTotal++;
+                                            if (yd.answers.pm && Object.keys(yd.answers.pm).length > 0) funTotal++;
                                         }
-                                        return acc + sum;
-                                    }, 0).toLocaleString()} <span className="text-[16px] text-[#9CA3AF]">pts</span>
-                                </span>
-                            </div>
-                            <FiAward className="absolute -right-[16px] -bottom-[16px] text-[#7C3AED]/5 group-hover:scale-110 transition-transform duration-700" size={120} />
-                        </Card>
-                        
-                        <Card className="flex flex-col justify-between relative overflow-hidden group border border-[#1F2937] hover:border-emerald-500/30 transition-all bg-[#0B0F14]">
-                            <div className="relative z-10">
-                                <span className="text-[12px] font-medium text-emerald-400 uppercase tracking-widest block mb-[12px]">Sync State</span>
-                                <div className="flex flex-col gap-4">
-                                    <div className="text-[32px] font-bold text-[#F9FAFB] tracking-tight">
-                                        {roundStats.teamsFullyCompleted} / {teams.length} <span className="text-[14px] text-[#9CA3AF] uppercase">Units Sync'd</span>
-                                    </div>
-                                    <div className="w-full bg-white/5 h-1.5 rounded-full overflow-hidden">
-                                        <div className="bg-emerald-500 h-full" style={{ width: `${(roundStats.teamsFullyCompleted / (teams.length || 1)) * 100}%` }} />
-                                    </div>
-                                </div>
-                            </div>
-                            <FiActivity className="absolute -right-[16px] -bottom-[16px] text-emerald-500/5 group-hover:scale-110 transition-transform duration-700" size={120} />
-                        </Card>
+                                    });
+                                });
 
-                        <Card className="flex flex-col justify-between relative overflow-hidden group border border-[#1F2937] hover:border-sky-500/30 transition-all bg-[#0B0F14]">
-                            <div className="relative z-10">
-                                <span className="text-[12px] font-medium text-sky-400 uppercase tracking-widest block mb-[12px]">Role Completion</span>
-                                <div className="grid grid-cols-3 gap-8 mt-8">
-                                    <div className="text-center">
-                                        <div className="text-[18px] font-black text-white">{roundStats.ctoCompleted}</div>
-                                        <div className="text-[9px] text-[#9CA3AF] uppercase font-bold">CTO</div>
-                                    </div>
-                                    <div className="text-center border-x border-white/5">
-                                        <div className="text-[18px] font-black text-white">{roundStats.cfoCompleted}</div>
-                                        <div className="text-[9px] text-[#9CA3AF] uppercase font-bold">CFO</div>
-                                    </div>
-                                    <div className="text-center">
-                                        <div className="text-[18px] font-black text-white">{roundStats.pmCompleted}</div>
-                                        <div className="text-[9px] text-[#9CA3AF] uppercase font-bold">PM</div>
-                                    </div>
-                                </div>
-                            </div>
-                            <FiZap className="absolute -right-[16px] -bottom-[16px] text-sky-500/5 group-hover:scale-110 transition-transform duration-700" size={120} />
-                        </Card>
+                                return (
+                                    <div
+                                        onClick={() => navigate('/admin/r6')}
+                                        className={`rounded-[14px] border p-[16px] cursor-pointer transition-all hover:scale-[1.02] ${
+                                            isFunActive
+                                                ? 'border-yellow-500/40 bg-yellow-500/5 shadow-[0_0_20px_rgba(234,179,8,0.1)]'
+                                                : 'border-[#1F2937] bg-[#111827]/60'
+                                        }`}
+                                    >
+                                        <div className="flex items-center justify-between mb-[14px]">
+                                            <div className="flex items-center gap-[8px]">
+                                                {isFunActive && <span className="w-[8px] h-[8px] bg-yellow-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(234,179,8,0.5)]" />}
+                                                <FiZap size={14} className="text-yellow-500" />
+                                                <span className="text-[15px] font-bold text-[#F9FAFB]">Fun Round</span>
+                                            </div>
+                                            <span className={`text-[10px] font-bold uppercase px-[8px] py-[2px] rounded-full ${
+                                                isFunActive ? 'bg-yellow-500/20 text-yellow-500' : 'bg-[#1F2937] text-[#6B7280]'
+                                            }`}>
+                                                {isFunActive ? 'ACTIVE' : funTotal > 0 ? 'PLAYED' : 'READY'}
+                                            </span>
+                                        </div>
 
-                        <Card className="flex flex-col justify-between relative overflow-hidden group border border-[#1F2937] hover:border-amber-500/30 transition-all bg-[#0B0F14]">
-                            <div className="relative z-10">
-                                <span className="text-[12px] font-medium text-amber-500 uppercase tracking-widest block mb-[12px]">Deployment Registry</span>
-                                <div className="text-[40px] font-bold text-[#F9FAFB] tracking-tight">
-                                    {teams.length} <span className="text-[16px] text-[#9CA3AF] uppercase">Clusters</span>
-                                </div>
-                            </div>
-                            <FiUsers className="absolute -right-[16px] -bottom-[16px] text-amber-500/5 group-hover:scale-110 transition-transform duration-700" size={120} />
-                        </Card>
+                                        <div className="text-center py-[8px]">
+                                            <div className="text-[24px] font-bold text-yellow-500">{funTotal}</div>
+                                            <div className="text-[10px] text-[#6B7280] uppercase tracking-wider">submissions</div>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+                        </div>
                     </div>
 
-                    <Card className="p-0 overflow-hidden flex flex-col h-[500px]">
-                        <div className="overflow-x-auto overflow-y-auto flex-1 hidden-scrollbar">
-                            <table className="w-full text-left relative">
-                                <thead className="border-b border-[#1F2937] bg-[#0F172A] sticky top-0 z-10">
-                                    <tr>
-                                        <th className="px-[16px] py-[16px] text-[12px] font-medium text-[#9CA3AF] uppercase tracking-widest">#</th>
-                                        <th className="px-[16px] py-[16px] text-[12px] font-medium text-[#9CA3AF] uppercase tracking-widest max-w-[150px] truncate">Team Name</th>
-                                        <th className="px-[16px] py-[16px] text-[12px] font-medium text-[#9CA3AF] uppercase tracking-widest text-center">CTO</th>
-                                        <th className="px-[16px] py-[16px] text-[12px] font-medium text-[#9CA3AF] uppercase tracking-widest text-center">CFO</th>
-                                        <th className="px-[16px] py-[16px] text-[12px] font-medium text-[#9CA3AF] uppercase tracking-widest text-center">PM</th>
-                                        <th className="px-[16px] py-[16px] text-[12px] font-medium text-[#9CA3AF] uppercase tracking-widest text-center">Status</th>
-                                        <th className="px-[16px] py-[16px] text-[12px] font-medium text-[#9CA3AF] uppercase tracking-widest text-right">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-[#1F2937]">
-                                    {teams.map((team, idx) => {
-                                        const cto = team.members?.find(m => m.role?.toLowerCase() === 'cto');
-                                        const cfo = team.members?.find(m => m.role?.toLowerCase() === 'cfo');
-                                        const pm = team.members?.find(m => m.role?.toLowerCase() === 'pm');
-                                        const violationsCount = team.gameState?.violations?.length || 0;
-                                        
-                                        const currentYearKey = `year${settings?.currentRound || 0}`;
-                                        const currentRoundData = team.gameState?.[currentYearKey];
-                                        
-                                        const renderRoleCell = (memberObj, roleStr) => {
-                                            if (!memberObj) return <span className="text-[13px] text-[#4B5563">—</span>;
-                                            const roleAns = currentRoundData?.answers?.[roleStr];
-                                            const completed = roleAns && Object.keys(roleAns).length > 0;
-                                            
-                                            if (completed) {
-                                                const roundDisplay = (settings?.currentRound || 0) + 1;
-                                                return (
-                                                    <div className="flex flex-col items-center justify-center gap-[4px]">
-                                                        <span className="text-[13px] font-medium text-[#D1D5DB]">{memberObj.name}</span>
-                                                        <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest flex items-center gap-[4px] px-[8px] py-[2px] rounded-full bg-emerald-400/10 border border-emerald-400/20">
-                                                            <FiCheckCircle size={10} /> R{roundDisplay} Done
-                                                        </span>
-                                                    </div>
-                                                );
-                                            }
-                                            return <span className="text-[13px] font-medium text-[#9CA3AF]">{memberObj.name}</span>;
-                                        };
+                    {/* ── TEAM CARDS GRID ── */}
+                    <div>
+                        <div className="flex items-center justify-between mb-[16px]">
+                            <h3 className="text-[16px] font-semibold text-[#F9FAFB]">All Teams ({teams.length})</h3>
+                        </div>
+                        {teams.length === 0 ? (
+                            <div className="py-[64px] text-center bg-[#111827]/40 rounded-[12px] border border-dashed border-[#1F2937]">
+                                <FiUsers className="text-[#1F2937] mx-auto mb-[12px]" size={40} />
+                                <p className="text-[14px] text-[#6B7280]">No teams registered yet</p>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-[20px]">
+                                {teams.map((team, idx) => {
+                                    const currentYearKey = `year${settings?.currentRound || 0}`;
+                                    const rd = team.gameState?.[currentYearKey];
+                                    const roles = ['cto', 'cfo', 'pm'];
+                                    const doneCount = roles.filter(r => rd?.answers?.[r] && Object.keys(rd.answers[r]).length > 0).length;
+                                    let totalScore = 0;
+                                    let roundsPlayed = 0;
+                                    for (let i = 0; i <= 4; i++) {
+                                        const yd = team.gameState?.[`year${i}`];
+                                        if (yd?.scores) {
+                                            const rScore = (yd.scores.cto || 0) + (yd.scores.cfo || 0) + (yd.scores.pm || 0);
+                                            totalScore += rScore;
+                                            if (rScore > 0) roundsPlayed++;
+                                        }
+                                    }
+                                    const allDone = doneCount === 3;
+                                    const avgScore = roundsPlayed > 0 ? Math.round(totalScore / roundsPlayed) : 0;
 
-                                        const progressPct = currentRoundData?.answers ? (
-                                            (Object.keys(currentRoundData.answers.cto || {}).length > 0 ? 1 : 0) +
-                                            (Object.keys(currentRoundData.answers.cfo || {}).length > 0 ? 1 : 0) +
-                                            (Object.keys(currentRoundData.answers.pm || {}).length > 0 ? 1 : 0)
-                                        ) / 3 * 100 : 0;
-
-                                        return (
-                                            <tr key={idx} className="hover:bg-white/[0.02] transition-colors group">
-                                                <td className="px-[16px] py-[20px]">
-                                                    <span className="text-[14px] font-medium text-[#9CA3AF] group-hover:text-[#7C3AED] transition-colors">{idx + 1}</span>
-                                                </td>
-                                                <td className="px-[16px] py-[20px] max-w-[150px] truncate" title={`${team.teamName} (${team.teamId})`}>
-                                                    <span className="text-[16px] font-semibold text-[#F9FAFB] group-hover:text-[#7C3AED] transition-colors block truncate">{team.teamName}</span>
-                                                    <span className="text-[10px] text-[#9CA3AF] font-mono hidden md:block">{team.teamId}</span>
-                                                </td>
-                                                <td className="px-[16px] py-[20px] text-center">
-                                                    {renderRoleCell(cto, 'cto')}
-                                                </td>
-                                                <td className="px-[16px] py-[20px] text-center">
-                                                    {renderRoleCell(cfo, 'cfo')}
-                                                </td>
-                                                <td className="px-[16px] py-[20px] text-center">
-                                                    {renderRoleCell(pm, 'pm')}
-                                                </td>
-                                                <td className="px-[16px] py-[20px] max-w-[120px]">
-                                                    <div className="flex flex-col gap-4">
-                                                        <span className={`px-[10px] py-[4px] rounded-full text-[10px] font-bold uppercase tracking-wider text-center truncate ${violationsCount > 0 ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'}`}>
-                                                            {violationsCount > 0 ? `RISK (${violationsCount})` : 'SECURE'}
-                                                        </span>
-                                                        <div className="w-full bg-white/5 h-2 rounded-full overflow-hidden">
-                                                            <div className="bg-[#7C3AED] h-full transition-all duration-500" style={{ width: `${progressPct}%` }} />
+                                    return (
+                                        <Card
+                                            key={idx}
+                                            className={`!p-0 cursor-pointer group ${allDone ? '!border-emerald-500/20' : ''}`}
+                                        >
+                                            <div onClick={() => setSelectedTeam(team)} className="p-[20px]">
+                                                {/* Header */}
+                                                <div className="flex items-start justify-between mb-[20px]">
+                                                    <div className="flex items-center gap-[12px]">
+                                                        <div className="w-[44px] h-[44px] rounded-[12px] bg-gradient-to-br from-[#7C3AED] to-[#3b82f6] flex items-center justify-center text-white font-bold text-[18px] shadow-lg shadow-[#7C3AED]/20">
+                                                            {team.teamName.charAt(0).toUpperCase()}
+                                                        </div>
+                                                        <div>
+                                                            <h4 className="text-[16px] font-bold text-[#F9FAFB] group-hover:text-[#7C3AED] transition-colors">{team.teamName}</h4>
+                                                            <div className="flex items-center gap-[6px] mt-[2px]">
+                                                                <span className="text-[10px] text-[#6B7280] font-mono">{team.teamId}</span>
+                                                                <span className="text-[8px] text-[#374151]">|</span>
+                                                                <span className={`text-[9px] font-bold uppercase ${team.status === 'registered' ? 'text-sky-400' : team.status === 'in-progress' ? 'text-amber-400' : 'text-emerald-400'}`}>{team.status}</span>
+                                                            </div>
                                                         </div>
                                                     </div>
-                                                </td>
-                                                <td className="px-[16px] py-[20px] text-right">
-                                                    <button 
-                                                        onClick={() => setSelectedTeam(team)}
-                                                        className="p-[8px] bg-[#1F2937] hover:bg-[#7C3AED] hover:text-white rounded-[8px] text-[#9CA3AF] transition-colors border border-[#1F2937]"
-                                                    >
-                                                        <FiEye size={18} />
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                            {teams.length === 0 && (
-                                <div className="py-[64px] text-center">
-                                    <FiActivity className="text-[#1F2937] mx-auto mb-[16px]" size={48} />
-                                    <p className="text-[14px] text-[#9CA3AF] uppercase tracking-widest">Awaiting Unit Registration...</p>
-                                </div>
-                            )}
-                        </div>
-                    </Card>
+                                                    <div className="text-right">
+                                                        <div className="text-[22px] font-black text-[#F9FAFB]">{totalScore}</div>
+                                                        <div className="text-[9px] text-[#6B7280] uppercase tracking-wider">points</div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Role cards */}
+                                                <div className="flex gap-[8px] mb-[16px]">
+                                                    {roles.map(role => {
+                                                        const member = team.members?.find(m => m.role === role);
+                                                        const done = rd?.answers?.[role] && Object.keys(rd.answers[role]).length > 0;
+                                                        const roleScore = rd?.scores?.[role] || 0;
+                                                        const roleColors = { cto: '#7C3AED', cfo: '#f59e0b', pm: '#10b981' };
+                                                        return (
+                                                            <div key={role} className={`flex-1 rounded-[10px] p-[10px] border transition-all ${done ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-[#0B0F14] border-[#1F2937]'}`}>
+                                                                <div className="flex items-center justify-between mb-[6px]">
+                                                                    <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: roleColors[role] }}>{role}</span>
+                                                                    {done ? <FiCheckCircle size={11} className="text-emerald-400" /> : <FiCircle size={11} className="text-[#374151]" />}
+                                                                </div>
+                                                                <div className={`text-[12px] font-medium truncate ${done ? 'text-[#D1D5DB]' : 'text-[#6B7280]'}`}>{member?.name || '—'}</div>
+                                                                {done && <div className="text-[10px] font-bold text-emerald-400 mt-[4px]">+{roleScore} pts</div>}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+
+                                                {/* Footer stats */}
+                                                <div className="flex items-center justify-between pt-[12px] border-t border-[#1F2937]/50">
+                                                    <div className="flex items-center gap-[12px]">
+                                                        <span className="text-[11px] text-[#6B7280]"><span className="text-[#9CA3AF] font-medium">{roundsPlayed}</span> rounds played</span>
+                                                        {roundsPlayed > 0 && <span className="text-[11px] text-[#6B7280]"><span className="text-[#9CA3AF] font-medium">{avgScore}</span> avg</span>}
+                                                    </div>
+                                                    <div className="flex items-center gap-[8px]">
+                                                        <div className="w-[60px] bg-[#1F2937] h-[4px] rounded-full overflow-hidden">
+                                                            <div className={`h-full rounded-full transition-all duration-500 ${allDone ? 'bg-emerald-500' : 'bg-[#7C3AED]'}`} style={{ width: `${(doneCount / 3) * 100}%` }} />
+                                                        </div>
+                                                        <span className={`text-[11px] font-bold ${allDone ? 'text-emerald-400' : 'text-[#6B7280]'}`}>{doneCount}/3</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </Card>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
 
                     {/* Team Details Modal */}
                     {selectedTeam && (
@@ -1272,6 +1324,12 @@ const AdminDashboard = () => {
                 
                 const isLocked = tabYear < settings?.currentRound || (tabYear === settings?.currentRound && !settings?.isRoundActive && hasProg);
 
+                const funQs = isFunTab
+                  ? questions.filter(q => q.year === tabYear && q.role === 'fun')
+                  : [];
+                const currentFunIdx = funQs.findIndex(q => q.questionId === settings?.activeFunQuestionId);
+                const currentFunQ = currentFunIdx >= 0 ? funQs[currentFunIdx] : null;
+
                 let btnIcon, btnLabel, btnStyle;
                 if (isThisRoundLive) {
                     btnIcon = <FiStopCircle size={20} />;
@@ -1305,7 +1363,7 @@ const AdminDashboard = () => {
                                     variant="secondary"
                                     onClick={() => {
                                         setLeaderboardMode(isFunTab ? 'fun' : 'standard');
-                                        setFilteredRound(isFunTab ? tabYear - 4 : tabYear);
+                                        setFilteredRound(isFunTab ? null : tabYear);
                                         setIsFullScreenLeaderboard(true);
                                     }}
                                     className="h-[48px] px-[28px] border-yellow-500/30 text-yellow-500 hover:bg-yellow-500/10"
@@ -1332,18 +1390,90 @@ const AdminDashboard = () => {
                         </div>
 
                         {isFunTab && isThisRoundLive && (
-                            <div className="mb-[32px] p-[24px] bg-yellow-500/5 border border-yellow-500/20 rounded-[12px] flex items-center justify-between animate-in slide-in-from-top-4 duration-500">
-                                <div className="flex items-center gap-[16px]">
-                                    <div className="relative">
-                                        <FiUsers className="text-yellow-500" size={32} />
-                                        <div className="absolute -top-4 -right-4 bg-yellow-500 text-black text-[10px] font-black px-4 rounded-full animate-bounce">LIVE</div>
+                            <div className="mb-[32px] rounded-[16px] border border-yellow-500/30 bg-gradient-to-br from-yellow-500/8 via-[#111827] to-[#111827] overflow-hidden animate-in slide-in-from-top-4 duration-500 shadow-[0_0_40px_rgba(234,179,8,0.06)]">
+                                {/* Host Panel Header */}
+                                <div className="px-[24px] py-[14px] border-b border-yellow-500/10 bg-yellow-500/5 flex items-center justify-between">
+                                    <div className="flex items-center gap-[12px]">
+                                        <div className="w-[10px] h-[10px] bg-yellow-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(234,179,8,0.6)]" />
+                                        <span className="text-[13px] font-black text-yellow-500 uppercase tracking-[0.15em]">Quiz Host Panel</span>
                                     </div>
-                                    <div>
-                                        <div className="text-[20px] font-bold text-white">
-                                            {activeQuestionStats.answeredCount} / {activeQuestionStats.totalTeams} Units Answered
+                                    {funQs.length > 0 && (
+                                        <div className="flex items-center gap-[14px]">
+                                            <span className="text-[13px] text-[#9CA3AF] font-medium">
+                                                Question <span className="text-[#F9FAFB] font-bold">{currentFunIdx >= 0 ? currentFunIdx + 1 : '—'}</span> of <span className="text-[#F9FAFB] font-bold">{funQs.length}</span>
+                                            </span>
+                                            <div className="w-[100px] bg-[#1F2937] h-[6px] rounded-full overflow-hidden">
+                                                <div className="h-full bg-gradient-to-r from-yellow-500 to-yellow-400 rounded-full transition-all duration-700 ease-out" style={{ width: `${funQs.length > 0 ? (Math.max(0, currentFunIdx + 1) / funQs.length) * 100 : 0}%` }} />
+                                            </div>
                                         </div>
-                                        <p className="text-[12px] text-yellow-500/60 uppercase tracking-widest font-medium">Telemetry Synchronized - Polling every 3s</p>
-                                    </div>
+                                    )}
+                                </div>
+
+                                {/* Current Question Preview */}
+                                <div className="p-[24px]">
+                                    {currentFunQ ? (
+                                        <div className="flex gap-[20px] items-start">
+                                            {currentFunQ.assetUrl && (
+                                                <div className="w-[140px] h-[90px] rounded-[10px] overflow-hidden border border-[#1F2937] bg-[#0B0F14] shrink-0">
+                                                    <img src={currentFunQ.assetUrl} alt="" className="w-full h-full object-cover" />
+                                                </div>
+                                            )}
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-[10px] mb-[8px]">
+                                                    <span className="w-[28px] h-[28px] rounded-[8px] bg-yellow-500 text-black flex items-center justify-center text-[13px] font-black shrink-0">{currentFunIdx + 1}</span>
+                                                    <span className="text-[10px] font-black text-yellow-500 bg-yellow-500/10 px-[10px] py-[3px] rounded-full border border-yellow-500/20 uppercase tracking-wider">Showing to participants</span>
+                                                </div>
+                                                <p className="text-[15px] font-semibold text-[#F9FAFB] leading-snug truncate">{currentFunQ.question}</p>
+                                                <div className="flex items-center gap-[6px] mt-[6px]">
+                                                    <FiCheckCircle size={12} className="text-emerald-400 shrink-0" />
+                                                    <span className="text-[12px] text-emerald-400 font-medium">Answer: {currentFunQ.correctAnswer}</span>
+                                                </div>
+                                            </div>
+                                            <div className="text-center shrink-0 bg-[#0B0F14] rounded-[12px] px-[20px] py-[14px] border border-[#1F2937]">
+                                                <div className="text-[32px] font-black text-yellow-500 leading-none">{activeQuestionStats.answeredCount}</div>
+                                                <div className="text-[10px] text-[#6B7280] uppercase tracking-wider mt-[4px] font-bold">of {activeQuestionStats.totalTeams} answered</div>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="text-center py-[20px]">
+                                            <div className="w-[56px] h-[56px] rounded-[14px] bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center mx-auto mb-[14px]">
+                                                <FiZap className="text-yellow-500" size={26} />
+                                            </div>
+                                            <p className="text-[18px] font-bold text-[#F9FAFB] mb-[6px]">Ready to Begin</p>
+                                            <p className="text-[13px] text-[#6B7280]">{funQs.length} question{funQs.length !== 1 ? 's' : ''} loaded — click below to show the first question to everyone</p>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Navigation Controls */}
+                                <div className="px-[24px] py-[16px] border-t border-[#1F2937] bg-[#0B0F14]/60 flex items-center justify-between">
+                                    <button
+                                        onClick={() => { if (currentFunIdx > 0) handleActivateFunQuestion(funQs[currentFunIdx - 1].questionId); }}
+                                        disabled={currentFunIdx <= 0}
+                                        className="flex items-center gap-[6px] px-[16px] py-[10px] rounded-[10px] text-[12px] font-bold uppercase tracking-wider transition-all border border-[#1F2937] text-[#9CA3AF] hover:text-[#F9FAFB] hover:border-[#374151] hover:bg-[#1F2937]/50 disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-[#9CA3AF]"
+                                    >
+                                        <FiChevronLeft size={16} /> Previous
+                                    </button>
+
+                                    <button
+                                        onClick={() => {
+                                            if (currentFunIdx === -1 && funQs.length > 0) {
+                                                handleActivateFunQuestion(funQs[0].questionId);
+                                            } else if (currentFunIdx < funQs.length - 1) {
+                                                handleActivateFunQuestion(funQs[currentFunIdx + 1].questionId);
+                                            }
+                                        }}
+                                        disabled={funQs.length === 0 || (currentFunIdx >= 0 && currentFunIdx >= funQs.length - 1)}
+                                        className="flex items-center gap-[10px] px-[32px] py-[12px] rounded-[12px] bg-yellow-500 hover:bg-yellow-400 text-black text-[14px] font-black uppercase tracking-wider transition-all shadow-lg shadow-yellow-500/25 hover:shadow-yellow-500/40 hover:scale-[1.03] active:scale-[0.97] disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:shadow-none"
+                                    >
+                                        {currentFunIdx === -1 ? (
+                                            <><FiPlay size={18} /> Show First Question</>
+                                        ) : currentFunIdx >= funQs.length - 1 ? (
+                                            <><FiCheckCircle size={18} /> All Questions Shown</>
+                                        ) : (
+                                            <>Next Question <FiChevronRight size={18} /></>
+                                        )}
+                                    </button>
                                 </div>
                             </div>
                         )}
@@ -1381,8 +1511,10 @@ const AdminDashboard = () => {
                                             scoringRubric: { full: 10, partial: 5, incorrect: -5 }
                                         });
                                     } else {
-                                        // Auto-set role if in fun tab
-                                        if (isFunTab) setActiveRoleFilter('fun');
+                                        if (isFunTab) {
+                                            setActiveRoleFilter('fun');
+                                            setNewQ(prev => ({...prev, type: 'text', correctAnswer: '', assetUrl: '', question: ''}));
+                                        }
                                     }
                                     setIsAddingQuestion(!isAddingQuestion);
                                 }}
@@ -1394,38 +1526,138 @@ const AdminDashboard = () => {
                         </div>
 
                         {/* Add Question Form */}
-                        {isAddingQuestion && (
+                        {isAddingQuestion && isFunTab && (
+                            <div className="bg-gradient-to-br from-yellow-500/5 via-[#111827] to-[#111827] border border-yellow-500/20 rounded-[16px] p-[32px] mb-[32px] animate-in zoom-in-95 duration-300">
+                                <div className="mb-[28px]">
+                                    <div className="flex items-center gap-[12px] mb-[6px]">
+                                        <FiZap className="text-yellow-500" size={22} />
+                                        <h4 className="text-[20px] font-bold text-[#F9FAFB]">{editingQId ? 'Edit Fun Question' : 'New Fun Question'}</h4>
+                                    </div>
+                                    <p className="text-[12px] text-[#9CA3AF]">Add an image and set the correct answer. Scoring is speed-based — fastest correct answer wins.</p>
+                                </div>
+
+                                <form onSubmit={handleCreateQuestion} className="flex flex-col gap-[24px]">
+                                    {/* Image Upload — Hero Section */}
+                                    <div className="rounded-[14px] border-2 border-dashed border-[#1F2937] bg-[#0B0F14] p-[24px] transition-all hover:border-yellow-500/30">
+                                        {newQ.assetUrl ? (
+                                            <div className="flex flex-col items-center gap-[16px]">
+                                                <div className="relative rounded-[12px] overflow-hidden border border-[#1F2937] bg-[#111827] inline-block">
+                                                    <img src={newQ.assetUrl} alt="Preview" className="max-w-full max-h-[280px] object-contain" />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setNewQ({...newQ, assetUrl: ''})}
+                                                        className="absolute top-[8px] right-[8px] w-[28px] h-[28px] bg-red-500/80 hover:bg-red-500 text-white rounded-full flex items-center justify-center transition-all"
+                                                    >
+                                                        <FiX size={14} />
+                                                    </button>
+                                                </div>
+                                                <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">Image loaded</span>
+                                            </div>
+                                        ) : (
+                                            <label className="flex flex-col items-center gap-[16px] cursor-pointer py-[24px]">
+                                                <div className="w-[64px] h-[64px] rounded-[16px] bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center">
+                                                    <FiPlusSquare className="text-yellow-500" size={28} />
+                                                </div>
+                                                <div className="text-center">
+                                                    <p className="text-[14px] font-semibold text-[#F9FAFB]">Click to upload image</p>
+                                                    <p className="text-[11px] text-[#6B7280] mt-[4px]">PNG, JPG, GIF up to 10MB</p>
+                                                </div>
+                                                <input
+                                                    type="file"
+                                                    className="hidden"
+                                                    accept="image/*"
+                                                    onChange={(e) => {
+                                                        const file = e.target.files[0];
+                                                        if (file) {
+                                                            const reader = new FileReader();
+                                                            reader.onloadend = () => setNewQ({...newQ, assetUrl: reader.result});
+                                                            reader.readAsDataURL(file);
+                                                        }
+                                                    }}
+                                                />
+                                            </label>
+                                        )}
+                                        <div className="flex items-center gap-[12px] mt-[16px]">
+                                            <div className="flex-1 h-[1px] bg-[#1F2937]" />
+                                            <span className="text-[10px] text-[#4B5563] font-bold uppercase tracking-wider">or paste URL</span>
+                                            <div className="flex-1 h-[1px] bg-[#1F2937]" />
+                                        </div>
+                                        <input
+                                            type="text"
+                                            value={newQ.assetUrl?.startsWith('data:') ? '' : (newQ.assetUrl || '')}
+                                            onChange={e => setNewQ({...newQ, assetUrl: e.target.value})}
+                                            className="w-full mt-[12px] px-[16px] py-[10px] bg-[#111827] border border-[#1F2937] rounded-[10px] text-[13px] text-[#F9FAFB] focus:border-yellow-500/40 focus:outline-none transition-all font-mono placeholder-[#374151]"
+                                            placeholder="https://example.com/image.png"
+                                        />
+                                    </div>
+
+                                    {/* Question + Answer Side by Side */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-[20px]">
+                                        <div className="flex flex-col gap-[8px]">
+                                            <label className="text-[11px] font-bold text-[#9CA3AF] uppercase tracking-widest px-[4px]">Question / Hint</label>
+                                            <textarea
+                                                value={newQ.question}
+                                                onChange={e => setNewQ({...newQ, question: e.target.value})}
+                                                className="w-full h-[100px] px-[16px] py-[12px] bg-[#0B0F14] border border-[#1F2937] rounded-[12px] text-[14px] text-[#F9FAFB] focus:border-yellow-500/40 focus:outline-none transition-all resize-none placeholder-[#374151]"
+                                                placeholder="e.g. Guess the word from this image"
+                                                required
+                                            />
+                                        </div>
+                                        <div className="flex flex-col gap-[8px]">
+                                            <label className="text-[11px] font-bold text-yellow-500 uppercase tracking-widest px-[4px]">Correct Answer</label>
+                                            <input
+                                                type="text"
+                                                value={typeof newQ.correctAnswer === 'string' ? newQ.correctAnswer : ''}
+                                                onChange={e => setNewQ({...newQ, correctAnswer: e.target.value, type: 'text'})}
+                                                className="w-full px-[16px] py-[14px] bg-[#0B0F14] border-2 border-yellow-500/20 rounded-[12px] text-[18px] font-bold text-yellow-500 focus:border-yellow-500/60 focus:outline-none transition-all placeholder-[#374151] text-center"
+                                                placeholder="Downtown"
+                                                required
+                                            />
+                                            <div className="flex items-center gap-[8px] px-[4px]">
+                                                <div className="w-[4px] h-[4px] rounded-full bg-emerald-500" />
+                                                <span className="text-[10px] text-[#6B7280]">Case-insensitive, spaces ignored</span>
+                                            </div>
+                                            <div className="flex items-center gap-[8px] px-[4px]">
+                                                <div className="w-[4px] h-[4px] rounded-full bg-emerald-500" />
+                                                <span className="text-[10px] text-[#6B7280]">"Down Town" = "downtown" = "DOWNTOWN"</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <Button type="submit" className="w-full h-[52px] !bg-yellow-500 hover:!bg-yellow-400 !text-black">
+                                        <FiZap size={18} className="mr-[8px]" />
+                                        <span className="text-[15px] font-black uppercase tracking-wider">{editingQId ? 'Update Question' : 'Add Fun Question'}</span>
+                                    </Button>
+                                </form>
+                            </div>
+                        )}
+
+                        {isAddingQuestion && !isFunTab && (
                             <div className="bg-[#111827]/80 backdrop-blur-xl border border-[#7C3AED]/30 rounded-[12px] p-[32px] mb-[32px] animate-in zoom-in-95 duration-300">
                                 <div className="mb-[24px] flex justify-between items-start">
                                     <div>
-                                        <h4 className="text-[18px] font-semibold text-[#F9FAFB]">{editingQId ? 'Modify Scenario' : (isFunTab ? '⚡ Fun Round Architect' : 'Strategic Scenario Architect')}</h4>
-                                        <p className="text-[12px] text-[#9CA3AF] mt-[4px]">{isFunTab ? 'Speed-based scoring enabled: First to answer gets 100pts.' : (editingQId ? `Modifying existing deployment ID: ${editingQId}` : 'Phase Simulation Parameters')}</p>
+                                        <h4 className="text-[18px] font-semibold text-[#F9FAFB]">{editingQId ? 'Modify Scenario' : 'Strategic Scenario Architect'}</h4>
+                                        <p className="text-[12px] text-[#9CA3AF] mt-[4px]">{editingQId ? `Modifying existing deployment ID: ${editingQId}` : 'Phase Simulation Parameters'}</p>
                                     </div>
-                                    <select 
+                                    <select
                                         value={newQ.type}
                                         onChange={e => setNewQ({...newQ, type: e.target.value})}
                                         className="bg-[#111827] border border-[#1F2937] text-[#7C3AED] text-[12px] font-bold px-[12px] py-[6px] rounded uppercase tracking-wider focus:outline-none"
                                     >
                                         <option value="mcq">MCQ</option>
-                                        {isFunTab ? (
-                                            <option value="text">Fill the Answer</option>
-                                        ) : (
-                                            <>
-                                                <option value="truefalse">True/False</option>
-                                                <option value="multi-select">Multi-Selection</option>
-                                                <option value="range">Range/Numerical</option>
-                                                <option value="numerical">Numerical Exact</option>
-                                            </>
-                                        )}
+                                        <option value="truefalse">True/False</option>
+                                        <option value="multi-select">Multi-Selection</option>
+                                        <option value="range">Range/Numerical</option>
+                                        <option value="numerical">Numerical Exact</option>
                                     </select>
                                 </div>
-                                
+
                                 <form onSubmit={handleCreateQuestion} className="flex flex-col gap-[24px]">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-[24px]">
                                         <div className="flex flex-col gap-[20px]">
                                             <div className="flex flex-col gap-[8px]">
                                                 <label className="text-[12px] font-medium text-[#9CA3AF] uppercase tracking-widest px-[4px]">Mission Briefing (Question)</label>
-                                                <textarea 
+                                                <textarea
                                                     value={newQ.question}
                                                     onChange={e => setNewQ({...newQ, question: e.target.value})}
                                                     className="w-full h-[120px] px-[16px] py-[12px] bg-[#0B0F14] border border-[#1F2937] rounded-[12px] text-[14px] text-[#F9FAFB] focus:border-[#7C3AED] focus:outline-none transition-all resize-none"
@@ -1433,94 +1665,56 @@ const AdminDashboard = () => {
                                                     required
                                                 />
                                             </div>
+                                        </div>
 
-                                            {isFunTab && (
+                                        <div className="bg-[#111827] border border-[#1F2937] rounded-[12px] p-[20px] flex flex-col gap-[16px]">
+                                            <h5 className="text-[10px] font-bold text-[#4B5563] uppercase tracking-[0.2em] mb-[4px]">Scoring Rubric</h5>
+                                            <div className="grid grid-cols-2 gap-[16px]">
                                                 <div className="flex flex-col gap-[8px]">
-                                                    <label className="text-[12px] font-medium text-yellow-500 uppercase tracking-widest px-[4px]">Tactical Media Asset (Image/Clip)</label>
-                                                    <div className="flex gap-8">
-                                                        <input 
-                                                            type="text" 
-                                                            value={newQ.assetUrl || ''} 
-                                                            onChange={e=>setNewQ({...newQ, assetUrl: e.target.value})} 
-                                                            className="flex-1 px-[16px] py-[10px] bg-[#111827] border border-[#1F2937] rounded-[8px] text-[14px] text-[#F9FAFB] focus:border-yellow-500/50 focus:outline-none transition-all font-mono" 
-                                                            placeholder="https://... or upload local" 
-                                                        />
-                                                        <label className="cursor-pointer px-16 py-10 bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-500 border border-yellow-500/30 rounded-8 flex items-center transition-all">
-                                                            <FiPlusSquare size={18} />
-                                                            <input 
-                                                                type="file" 
-                                                                className="hidden" 
-                                                                accept="image/*,video/*"
-                                                                onChange={(e) => {
-                                                                    const file = e.target.files[0];
-                                                                    if (file) {
-                                                                        const reader = new FileReader();
-                                                                        reader.onloadend = () => {
-                                                                            setNewQ({...newQ, assetUrl: reader.result});
-                                                                        };
-                                                                        reader.readAsDataURL(file);
-                                                                    }
-                                                                }}
-                                                            />
-                                                        </label>
-                                                    </div>
-                                                    {newQ.assetUrl && newQ.assetUrl.startsWith('data:') && (
-                                                        <p className="text-[10px] text-emerald-400 font-bold px-4 uppercase tracking-tighter">✅ Local asset embedded</p>
-                                                    )}
+                                                    <label className="text-[12px] font-medium text-[#10B981] uppercase tracking-widest px-[4px]">Correct Reward</label>
+                                                    <input
+                                                        type="number"
+                                                        value={newQ.scoringRubric.full}
+                                                        onChange={e=>setNewQ({...newQ, scoringRubric: {...newQ.scoringRubric, full: Number(e.target.value)}})}
+                                                        className="w-full px-[16px] py-[10px] bg-[#0B0F14] border border-[#1F2937] rounded-[8px] text-[14px] text-emerald-400 focus:border-emerald-500/50 focus:outline-none transition-all font-mono"
+                                                    />
+                                                </div>
+                                                <div className="flex flex-col gap-[8px]">
+                                                    <label className="text-[12px] font-medium text-red-400 uppercase tracking-widest px-[4px]">Penalty (-)</label>
+                                                    <input
+                                                        type="number"
+                                                        value={newQ.scoringRubric.incorrect}
+                                                        onChange={e=>setNewQ({...newQ, scoringRubric: {...newQ.scoringRubric, incorrect: Number(e.target.value)}})}
+                                                        className="w-full px-[16px] py-[10px] bg-[#0B0F14] border border-[#1F2937] rounded-[8px] text-[14px] text-red-400 focus:border-red-500/50 focus:outline-none transition-all font-mono"
+                                                    />
+                                                </div>
+                                            </div>
+                                            {['multi-select', 'range', 'numerical'].includes(newQ.type) && (
+                                                <div className="flex flex-col gap-[8px]">
+                                                    <label className="text-[12px] font-medium text-[#7C3AED] uppercase tracking-widest px-[4px]">
+                                                        {newQ.type === 'numerical' ? 'Target Value' : 'Partial Credit'}
+                                                    </label>
+                                                    <input
+                                                        type="number"
+                                                        value={newQ.type === 'numerical' ? newQ.range.min : newQ.scoringRubric.partial}
+                                                        onChange={e=>{
+                                                            if(newQ.type === 'numerical') {
+                                                                setNewQ({...newQ, range: {...newQ.range, min: Number(e.target.value), max: Number(e.target.value)}});
+                                                            } else {
+                                                                setNewQ({...newQ, scoringRubric: {...newQ.scoringRubric, partial: Number(e.target.value)}});
+                                                            }
+                                                        }}
+                                                        className="w-full px-[16px] py-[10px] bg-[#0B0F14] border border-[#1F2937] rounded-[8px] text-[14px] text-[#A78BFA] focus:border-[#7C3AED]/50 focus:outline-none transition-all font-mono"
+                                                    />
                                                 </div>
                                             )}
                                         </div>
-
-                                        {!isFunTab && (
-                                            <div className="bg-[#111827] border border-[#1F2937] rounded-[12px] p-[20px] flex flex-col gap-[16px]">
-                                                <h5 className="text-[10px] font-bold text-[#4B5563] uppercase tracking-[0.2em] mb-[4px]">Scoring Rubric</h5>
-                                                <div className="grid grid-cols-2 gap-[16px]">
-                                                    <div className="flex flex-col gap-[8px]">
-                                                        <label className="text-[12px] font-medium text-[#10B981] uppercase tracking-widest px-[4px]">Correct Reward</label>
-                                                        <input 
-                                                            type="number"
-                                                            value={newQ.scoringRubric.full}
-                                                            onChange={e=>setNewQ({...newQ, scoringRubric: {...newQ.scoringRubric, full: Number(e.target.value)}})}
-                                                            className="w-full px-[16px] py-[10px] bg-[#0B0F14] border border-[#1F2937] rounded-[8px] text-[14px] text-emerald-400 focus:border-emerald-500/50 focus:outline-none transition-all font-mono"
-                                                        />
-                                                    </div>
-                                                    <div className="flex flex-col gap-[8px]">
-                                                        <label className="text-[12px] font-medium text-red-400 uppercase tracking-widest px-[4px]">Penalty (-)</label>
-                                                        <input 
-                                                            type="number"
-                                                            value={newQ.scoringRubric.incorrect}
-                                                            onChange={e=>setNewQ({...newQ, scoringRubric: {...newQ.scoringRubric, incorrect: Number(e.target.value)}})}
-                                                            className="w-full px-[16px] py-[10px] bg-[#0B0F14] border border-[#1F2937] rounded-[8px] text-[14px] text-red-400 focus:border-red-500/50 focus:outline-none transition-all font-mono"
-                                                        />
-                                                    </div>
-                                                </div>
-                                                {['multi-select', 'range', 'numerical'].includes(newQ.type) && (
-                                                    <div className="flex flex-col gap-[8px]">
-                                                        <label className="text-[12px] font-medium text-[#7C3AED] uppercase tracking-widest px-[4px]">
-                                                            {newQ.type === 'numerical' ? 'Target Value' : 'Partial Credit'}
-                                                        </label>
-                                                        <input 
-                                                            type="number"
-                                                            value={newQ.type === 'numerical' ? newQ.range.min : newQ.scoringRubric.partial}
-                                                            onChange={e=>{
-                                                                if(newQ.type === 'numerical') {
-                                                                    setNewQ({...newQ, range: {...newQ.range, min: Number(e.target.value), max: Number(e.target.value)}});
-                                                                } else {
-                                                                    setNewQ({...newQ, scoringRubric: {...newQ.scoringRubric, partial: Number(e.target.value)}});
-                                                                }
-                                                            }}
-                                                            className="w-full px-[16px] py-[10px] bg-[#0B0F14] border border-[#1F2937] rounded-[8px] text-[14px] text-[#A78BFA] focus:border-[#7C3AED]/50 focus:outline-none transition-all font-mono"
-                                                        />
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
                                     </div>
 
                                     {newQ.type === 'text' && (
                                         <div className="flex flex-col gap-[8px] p-[24px] bg-[#111827] border border-[#1F2937] rounded-[12px]">
                                             <label className="text-[12px] font-medium text-yellow-500 uppercase tracking-widest px-[4px]">Correct Answer (Case-Insensitive)</label>
-                                            <input 
+                                            <input
                                                 type="text"
                                                 value={newQ.correctAnswer}
                                                 onChange={e => setNewQ({...newQ, correctAnswer: e.target.value})}
@@ -1644,33 +1838,69 @@ const AdminDashboard = () => {
                                             No scenarios created for {isFunTab ? 'this Experimental Round' : activeRoleFilter.toUpperCase()} yet. Click "Add Scenario" to initiate.
                                         </div>
                                     ) : (
-                                        questions.filter(q => q.year === tabYear && (isFunTab ? q.role === 'fun' : q.role === activeRoleFilter)).map((q, i) => (
-                                            <div key={i} className="p-[24px] bg-[#111827] rounded-[12px] border border-[#1F2937] flex flex-col md:flex-row items-start justify-between gap-[24px] group hover:bg-[#1F2937]/50 hover:border-[#7C3AED]/30 transition-all duration-300">
+                                        (isFunTab ? funQs : questions.filter(q => q.year === tabYear && q.role === activeRoleFilter)).map((q, i) => {
+                                            const isCurrent = isFunTab && settings?.activeFunQuestionId === q.questionId;
+                                            const isDone = isFunTab && currentFunIdx >= 0 && i < currentFunIdx;
+                                            const isNext = isFunTab && currentFunIdx >= 0 && i === currentFunIdx + 1;
+
+                                            return (
+                                            <div key={i} className={`p-[24px] rounded-[12px] border flex flex-col md:flex-row items-start justify-between gap-[24px] group transition-all duration-300 ${
+                                                isCurrent
+                                                    ? 'bg-yellow-500/5 border-yellow-500/30 shadow-[0_0_20px_rgba(234,179,8,0.08)]'
+                                                    : isDone
+                                                    ? 'bg-emerald-500/3 border-emerald-500/15'
+                                                    : 'bg-[#111827] border-[#1F2937] hover:bg-[#1F2937]/50 hover:border-[#7C3AED]/30'
+                                            }`}>
                                                 <div className="flex-1 w-full">
                                                     <div className="flex items-center gap-[12px] mb-[16px]">
-                                                        <span className={`px-[12px] py-[4px] rounded-[4px] text-[10px] font-bold uppercase tracking-wider border ${isFunTab ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20' : 'bg-[#7C3AED]/10 text-[#7C3AED] border-[#7C3AED]/20'}`}>
-                                                            {isFunTab ? 'Fun Round' : q.role}
-                                                        </span>
-                                                        {!isFunTab && (
-                                                            <span className="text-[12px] font-medium text-[#9CA3AF] uppercase tracking-widest flex items-center">
-                                                                <FiAward className="mr-[8px] text-[#7C3AED]" size={14} /> {q.scoringRubric?.full || 0} pts
-                                                            </span>
-                                                        )}
-                                                        {isFunTab && (
-                                                            <div className="flex items-center gap-[12px]">
-                                                                <span className="text-[12px] font-medium text-yellow-500/60 uppercase tracking-widest flex items-center">
-                                                                    <FiZap className="mr-[8px]" size={14} /> Speed Scoring
+                                                        {isFunTab ? (
+                                                            <>
+                                                                <span className={`w-[32px] h-[32px] rounded-[8px] flex items-center justify-center text-[14px] font-black shrink-0 transition-all ${
+                                                                    isCurrent ? 'bg-yellow-500 text-black shadow-[0_0_12px_rgba(234,179,8,0.4)]'
+                                                                    : isDone ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                                                    : 'bg-[#1F2937] text-[#9CA3AF]'
+                                                                }`}>{i + 1}</span>
+                                                                {isCurrent && (
+                                                                    <span className="text-[10px] font-black bg-yellow-500 text-black px-[10px] py-[3px] rounded-full uppercase tracking-wider animate-pulse">LIVE NOW</span>
+                                                                )}
+                                                                {isDone && (
+                                                                    <span className="text-[10px] font-bold bg-emerald-500/10 text-emerald-400 px-[10px] py-[3px] rounded-full border border-emerald-500/20 uppercase tracking-wider flex items-center gap-[4px]">
+                                                                        <FiCheckCircle size={10} /> Done
+                                                                    </span>
+                                                                )}
+                                                                {isNext && (
+                                                                    <span className="text-[10px] font-bold bg-[#1F2937] text-[#9CA3AF] px-[10px] py-[3px] rounded-full border border-[#374151] uppercase tracking-wider flex items-center gap-[4px]">
+                                                                        <FiSkipForward size={10} /> Up Next
+                                                                    </span>
+                                                                )}
+                                                                {(() => {
+                                                                    const count = teams.filter(t => {
+                                                                        const yd = t.gameState?.[`year${tabYear}`];
+                                                                        if (!yd?.answers) return false;
+                                                                        return ['cto','cfo','pm'].some(r => yd.answers[r]?.[q.questionId] !== undefined);
+                                                                    }).length;
+                                                                    return count > 0 ? (
+                                                                        <span className="text-[10px] font-bold text-[#6B7280] ml-auto">{count} answered</span>
+                                                                    ) : null;
+                                                                })()}
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <span className="px-[12px] py-[4px] rounded-[4px] text-[10px] font-bold uppercase tracking-wider border bg-[#7C3AED]/10 text-[#7C3AED] border-[#7C3AED]/20">
+                                                                    {q.role}
                                                                 </span>
-                                                                <span className="text-[10px] font-black bg-yellow-500/10 text-yellow-500 px-8 py-2 rounded-full border border-yellow-500/20">
-                                                                    {(() => {
-                                                                        const count = teams.filter(t => t.gameState?.[`year${tabYear}`]?.answers?.fun?.[q._id]).length;
-                                                                        return `${count} UNITS ANSWERED`;
-                                                                    })()}
+                                                                <span className="text-[12px] font-medium text-[#9CA3AF] uppercase tracking-widest flex items-center">
+                                                                    <FiAward className="mr-[8px] text-[#7C3AED]" size={14} /> {q.scoringRubric?.full || 0} pts
                                                                 </span>
-                                                            </div>
+                                                            </>
                                                         )}
                                                     </div>
                                                     <p className="text-[18px] font-semibold text-[#F9FAFB] leading-tight mb-[20px] transition-colors">{q.question}</p>
+                                                    {q.assetUrl && (
+                                                        <div className="mb-[16px] rounded-[10px] overflow-hidden border border-[#1F2937] bg-[#0B0F14] inline-block">
+                                                            <img src={q.assetUrl} alt="" className="max-w-[200px] max-h-[120px] object-contain" />
+                                                        </div>
+                                                    )}
                                                     <div className="flex flex-wrap gap-[12px]">
                                                         {['range', 'numerical', 'text'].includes(q.type) ? (
                                                             <div className="px-[12px] py-[6px] rounded-[4px] text-[12px] font-medium bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center gap-[8px]">
@@ -1712,29 +1942,14 @@ const AdminDashboard = () => {
                                                         })}
                                                     </div>
                                                 </div>
-                                                <div className="flex flex-col gap-[8px] opacity-0 group-hover:opacity-100 transition-all duration-300">
-                                                    {isFunTab && (
-                                                        <button 
-                                                            onClick={() => handleActivateFunQuestion(q._id)}
-                                                            className={`p-[12px] rounded-[8px] transition-all border ${
-                                                                settings?.activeFunQuestionId === q._id 
-                                                                ? 'bg-yellow-500 text-black border-yellow-400 animate-pulse' 
-                                                                : 'bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500 hover:text-black border-yellow-500/20'
-                                                            }`}
-                                                            title={settings?.activeFunQuestionId === q._id ? "Question is Live" : "Broadcast to Participants"}
-                                                        >
-                                                            <FiTarget size={18} />
-                                                        </button>
-                                                    )}
-                                                    {!isFunTab && (
-                                                        <button 
-                                                            onClick={() => handleEditClick(q)}
-                                                            className="p-[12px] rounded-[8px] bg-brand-primary/10 text-brand-primary hover:bg-brand-primary hover:text-white transition-all border border-brand-primary/20"
-                                                            title="Edit Scenario"
-                                                        >
-                                                            <FiTarget size={18} />
-                                                        </button>
-                                                    )}
+                                                <div className={`flex flex-col gap-[8px] transition-all duration-300 ${isFunTab ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                                                    <button
+                                                        onClick={() => handleEditClick(q)}
+                                                        className="p-[12px] rounded-[8px] bg-brand-primary/10 text-brand-primary hover:bg-brand-primary hover:text-white transition-all border border-brand-primary/20"
+                                                        title="Edit"
+                                                    >
+                                                        <FiRefreshCw size={16} />
+                                                    </button>
                                                     <button 
                                                         onClick={async () => {
                                                             if(window.confirm('IRREVERSIBLE: Eliminate this scenario from operational clusters?')) {
@@ -1751,7 +1966,8 @@ const AdminDashboard = () => {
                                                     </button>
                                                 </div>
                                             </div>
-                                        ))
+                                            );
+                                        })
                                     )}
                                 </>
                             )}
@@ -2116,8 +2332,6 @@ const AdminDashboard = () => {
         {/* FULL SCREEN LEADERBOARD OVERLAY */}
         {isFullScreenLeaderboard && (
             <div className="fixed inset-0 z-[9999] bg-[#030712] flex flex-col animate-in fade-in duration-500 overflow-hidden">
-                {/* Apple-style animated gradient border */}
-                <AppleGlow borderWidth={6} speed={3} />
 
                 {/* LightRays Background */}
                 <div className="absolute inset-0 z-0">

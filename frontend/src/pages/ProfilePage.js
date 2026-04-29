@@ -248,6 +248,32 @@ export default function ProfilePage() {
           </div>
         </Card>
 
+        {/* Fun Round Banner */}
+        {isRoundActive && adminActiveRound >= 5 && (
+          <Card className="p-0 border-yellow-500/30 bg-gradient-to-r from-yellow-500/5 via-[#111827] to-yellow-500/5 overflow-hidden">
+            <div className="flex items-center justify-between p-[20px]">
+              <div className="flex items-center gap-[16px]">
+                <div className="w-[48px] h-[48px] rounded-[12px] bg-yellow-500 flex items-center justify-center shadow-[0_0_20px_rgba(234,179,8,0.3)]">
+                  <FiZap size={24} className="text-black" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-[10px]">
+                    <h3 className="text-[18px] font-bold text-[#F9FAFB]">Fun Round is LIVE!</h3>
+                    <span className="w-[8px] h-[8px] bg-yellow-500 rounded-full animate-pulse" />
+                  </div>
+                  <p className="text-[12px] text-[#9CA3AF] mt-[2px]">Speed-based scoring — every millisecond counts</p>
+                </div>
+              </div>
+              <button
+                onClick={() => navigate('/fun-round')}
+                className="flex items-center gap-[8px] px-[24px] py-[12px] bg-yellow-500 hover:bg-yellow-400 text-black font-black text-[13px] uppercase tracking-wider rounded-[10px] transition-all shadow-lg shadow-yellow-500/20 hover:shadow-yellow-500/40 hover:scale-105 active:scale-95"
+              >
+                <FiPlay size={16} /> Enter Fun Round
+              </button>
+            </div>
+          </Card>
+        )}
+
         {/* Footer Actions — Compact & Pro */}
         <div className="flex flex-wrap justify-between items-center bg-brand-elevated/30 p-12 rounded-xl border border-brand-border">
           <div className="flex gap-8 flex-wrap">

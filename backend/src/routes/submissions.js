@@ -71,20 +71,28 @@ router.post('/:year', verifyToken, async (req, res) => {
     // SPEED-BASED SCORING FOR FUN ROUNDS (Year >= 5)
     if (parseInt(year) >= 5) {
       const activeQId = settings.activeFunQuestionId;
-      
-      // Check if the specific active question was answered correctly
+
+      // Block duplicate submission for the same question
+      const alreadyAnswered = team.gameState?.[`year${year}`]?.answers?.[role]?.[activeQId];
+      if (alreadyAnswered !== undefined) {
+        return res.status(400).json({ error: 'Already submitted for this question.' });
+      }
+
       const isCorrect = activeQId && questionScores[activeQId] > 0;
-      
-      if (isCorrect) {
-        // Count how many teams have already successfully answered THIS specific question
+
+      if (isCorrect && settings.roundStartedAt) {
+        const elapsedMs = Date.now() - new Date(settings.roundStartedAt).getTime();
+        const maxTimeMs = 20 * 60 * 1000;
+        const timeRatio = Math.max(0, 1 - (elapsedMs / maxTimeMs));
+        roleScore = Math.round(1000 * timeRatio);
+        roleScore = Math.max(roleScore, 10);
+        console.log(`[FUN ROUND] Team ${teamId} correct in ${(elapsedMs/1000).toFixed(2)}s. Score: ${roleScore} pts`);
+      } else if (isCorrect) {
         const submissionRank = await Submission.countDocuments({
           year: parseInt(year),
           [`scores.questionScores.${activeQId}`]: { $gt: 0 }
         });
-
-        // Award points based on rank: 1st=1000, 2nd=950, 3rd=900, etc.
         roleScore = Math.max(0, 1000 - (submissionRank * 50));
-        console.log(`[FUN ROUND] Team ${teamId} correctly answered Q:${activeQId} at rank ${submissionRank + 1}. Awarded ${roleScore} pts`);
       } else {
         roleScore = 0;
         console.log(`[FUN ROUND] Team ${teamId} answered incorrectly. 0 pts.`);
@@ -111,19 +119,44 @@ router.post('/:year', verifyToken, async (req, res) => {
 
     // Update team game state — store both answers AND questionScores for admin visibility
     const yearKey = `year${year}`;
-    const updateData = {
-      [`gameState.${yearKey}.answers.${role}`]: answers,
-      [`gameState.${yearKey}.scores.${role}`]: roleScore,
-      [`gameState.${yearKey}.questionScores.${role}`]: questionScores,
-      [`gameState.${yearKey}.timeSpent.${role}`]: req.body.timeSpent || 0,
-      [`gameState.${yearKey}.submittedAt`]: new Date()
-    };
 
-    await Team.updateOne({ teamId }, updateData);
+    if (parseInt(year) >= 5) {
+      // Fun rounds: MERGE answers and ADD scores (multiple questions per round)
+      const updateData = {
+        [`gameState.${yearKey}.timeSpent.${role}`]: req.body.timeSpent || 0,
+        [`gameState.${yearKey}.submittedAt`]: new Date()
+      };
+      // Merge individual answers
+      for (const [qId, answer] of Object.entries(answers)) {
+        updateData[`gameState.${yearKey}.answers.${role}.${qId}`] = answer;
+      }
+      // Merge individual question scores
+      for (const [qId, score] of Object.entries(questionScores)) {
+        if (score > 0) {
+          updateData[`gameState.${yearKey}.questionScores.${role}.${qId}`] = score;
+        }
+      }
+      // Add to existing score
+      const existingScore = team.gameState?.[yearKey]?.scores?.[role] || 0;
+      updateData[`gameState.${yearKey}.scores.${role}`] = existingScore + roleScore;
+
+      await Team.updateOne({ teamId }, { $set: updateData });
+    } else {
+      // Normal rounds: replace as before
+      const updateData = {
+        [`gameState.${yearKey}.answers.${role}`]: answers,
+        [`gameState.${yearKey}.scores.${role}`]: roleScore,
+        [`gameState.${yearKey}.questionScores.${role}`]: questionScores,
+        [`gameState.${yearKey}.timeSpent.${role}`]: req.body.timeSpent || 0,
+        [`gameState.${yearKey}.submittedAt`]: new Date()
+      };
+      await Team.updateOne({ teamId }, updateData);
+    }
 
     // Invalidate Leaderboard cache so ranking updates immediately
     if (isRedisReady()) {
       await redisClient.del('global:leaderboard');
+      await redisClient.del('global:leaderboard:fun');
     }
 
     // Check if all roles have submitted for THIS team
@@ -211,7 +244,7 @@ async function processYearCompletion(teamId, year) {
 
   // Separate Fun Points for the dedicated Fun Leaderboard
   if (parseInt(year) >= 5) {
-    team.funPoints = (team.funPoints || 0) + (team.gameState[yearKey].scores.fun || 0);
+    team.funPoints = (team.funPoints || 0) + roundTotal;
   }
 
   // For Fun Rounds, we skip tycoon logic (revenue, bill, runway etc)

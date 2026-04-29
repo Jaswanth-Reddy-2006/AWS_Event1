@@ -157,7 +157,7 @@ router.get('/team/:teamId', async (req, res) => {
 router.get('/fun', async (req, res) => {
   try {
     const cacheKey = 'global:leaderboard:fun';
-    
+
     if (isRedisReady()) {
       const cached = await redisClient.get(cacheKey);
       if (cached) return res.status(200).json(JSON.parse(cached));
@@ -166,42 +166,37 @@ router.get('/fun', async (req, res) => {
     const teams = await Team.find(
       { teamId: { $ne: 'ADMIN-EVENT-2026' } },
       'teamId teamName gameState funPoints createdAt'
-    )
-      .sort({ funPoints: -1, createdAt: 1 })
-      .limit(100);
+    ).limit(100);
 
-    const leaderboard = teams.map((team, idx) => {
+    const unsortedLeaderboard = teams.map((team) => {
       const funScoresByRound = {};
-      let totalProfit = 0;
-      let totalEfficiency = 0;
-      let totalTime = 0;
-      let roundsCounted = 0;
+      let totalFunPoints = 0;
 
-      // Support fun rounds starting from Year 5 (Round 6) to Year 10 (Round 11)
       for (let i = 5; i <= 10; i++) {
         const yd = team.gameState?.[`year${i}`];
-        funScoresByRound[`f${i-4}`] = yd?.scores?.fun || 0;
-        
-        // Also aggregate overall metrics if available
-        totalProfit += (yd?.scores?.total || 0);
-        if (yd?.efficiency) {
-            totalEfficiency += yd.efficiency;
-            roundsCounted++;
-        }
-        totalTime += (yd?.performance?.timeSpent || 0);
+        const roundScore = (yd?.scores?.cto || 0) + (yd?.scores?.cfo || 0) + (yd?.scores?.pm || 0);
+        funScoresByRound[`f${i - 4}`] = roundScore;
+        totalFunPoints += roundScore;
       }
 
       return {
-          teamId: team.teamId,
-          teamName: team.teamName,
-          funPoints: team.funPoints || 0,
-          totalProfit,
-          avgEfficiency: roundsCounted > 0 ? (totalEfficiency / roundsCounted) : 0,
-          totalTime,
-          ...funScoresByRound,
-          rank: idx + 1
+        teamId: team.teamId,
+        teamName: team.teamName,
+        funPoints: totalFunPoints,
+        ...funScoresByRound,
+        createdAt: team.createdAt
       };
     });
+
+    unsortedLeaderboard.sort((a, b) => {
+      if (b.funPoints !== a.funPoints) return b.funPoints - a.funPoints;
+      return new Date(a.createdAt) - new Date(b.createdAt);
+    });
+
+    const leaderboard = unsortedLeaderboard.map((team, idx) => ({
+      ...team,
+      rank: idx + 1
+    }));
 
     const result = {
       timestamp: new Date().toISOString(),
@@ -210,7 +205,7 @@ router.get('/fun', async (req, res) => {
     };
 
     if (isRedisReady()) {
-      await redisClient.setEx(cacheKey, 5, JSON.stringify(result));
+      await redisClient.setEx(cacheKey, 1, JSON.stringify(result));
     }
 
     res.status(200).json(result);

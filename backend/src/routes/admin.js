@@ -51,11 +51,14 @@ router.post('/settings', verifyToken, verifyAdmin, async (req, res) => {
   try {
     const { currentRound, isRoundActive, resetRoundData, activeFunQuestionId } = req.body;
 
-    // Build update object
-    const updateFields = { currentRound, isRoundActive, activeFunQuestionId, lastUpdated: new Date() };
+    // Build update object — only include fields that were explicitly sent
+    const updateFields = { lastUpdated: new Date() };
+    if (currentRound !== undefined) updateFields.currentRound = currentRound;
+    if (isRoundActive !== undefined) updateFields.isRoundActive = isRoundActive;
+    if (activeFunQuestionId !== undefined) updateFields.activeFunQuestionId = activeFunQuestionId;
 
     // When starting a round, record the start time for timer enforcement
-    if (isRoundActive) {
+    if (isRoundActive === true) {
       updateFields.roundStartedAt = new Date();
 
       // Clear any existing timer
@@ -84,8 +87,7 @@ router.post('/settings', verifyToken, verifyAdmin, async (req, res) => {
         roundAutoCloseTimer = null;
       }, 20 * 60 * 1000); // 20 minutes
 
-    } else {
-      // When stopping a round, clear the timer
+    } else if (isRoundActive === false) {
       if (roundAutoCloseTimer) {
         clearTimeout(roundAutoCloseTimer);
         roundAutoCloseTimer = null;
@@ -340,6 +342,12 @@ router.post('/questions', verifyToken, verifyAdmin, async (req, res) => {
       acceptableRange: acceptableRange
     });
     await newQuestion.save();
+
+    if (isRedisReady()) {
+      const keys = await redisClient.keys('qs:*');
+      if (keys.length > 0) await redisClient.del(keys);
+    }
+
     res.status(201).json(newQuestion);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -349,6 +357,12 @@ router.post('/questions', verifyToken, verifyAdmin, async (req, res) => {
 router.put('/questions/:id', verifyToken, verifyAdmin, async (req, res) => {
   try {
     const updated = await Question.findByIdAndUpdate(req.params.id, req.body, { new: true });
+
+    if (isRedisReady()) {
+      const keys = await redisClient.keys('qs:*');
+      if (keys.length > 0) await redisClient.del(keys);
+    }
+
     res.status(200).json(updated);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -358,6 +372,12 @@ router.put('/questions/:id', verifyToken, verifyAdmin, async (req, res) => {
 router.delete('/questions/:id', verifyToken, verifyAdmin, async (req, res) => {
   try {
     await Question.findByIdAndDelete(req.params.id);
+
+    if (isRedisReady()) {
+      const keys = await redisClient.keys('qs:*');
+      if (keys.length > 0) await redisClient.del(keys);
+    }
+
     res.status(200).json({ message: 'Question eliminated.' });
   } catch (err) {
     res.status(500).json({ error: err.message });

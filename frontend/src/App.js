@@ -8,6 +8,7 @@ import LoginPage from './pages/LoginPage';
 import ProfilePage from './pages/ProfilePage';
 import TrainingPage from './pages/TrainingPage';
 import QuestionPage from './pages/QuestionPage';
+import FunRoundPage from './pages/FunRoundPage';
 import InstructionsPage from './pages/InstructionsPage';
 import YearEndReportPage from './pages/YearEndReportPage';
 import LeaderboardPage from './pages/LeaderboardPage';
@@ -42,6 +43,10 @@ function App() {
         <Route
           path="/questions/:year"
           element={<ProtectedRoute><QuestionPage /></ProtectedRoute>}
+        />
+        <Route
+          path="/fun-round"
+          element={<ProtectedRoute><FunRoundPage /></ProtectedRoute>}
         />
         <Route
           path="/year-end-report/:year"

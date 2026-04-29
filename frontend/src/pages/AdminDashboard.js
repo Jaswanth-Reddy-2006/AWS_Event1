@@ -31,9 +31,6 @@ import {
     FiZap,
     FiCircle,
     FiAward,
-    FiStar,
-    FiChevronDown,
-    FiChevronUp,
     FiPlusSquare,
     FiCopy,
     FiCheckSquare,
@@ -48,7 +45,6 @@ const AdminDashboard = () => {
   const activeTab = tab || 'dashboard';
   const { setLogout } = useGameStore();
   const [leaderboardMode, setLeaderboardMode] = useState('standard');
-  const [isFunRoundsOpen, setIsFunRoundsOpen] = useState(false);
   const [visiblePasswords, setVisiblePasswords] = useState({});
   const [isFullScreenLeaderboard, setIsFullScreenLeaderboard] = useState(false);
   const [filteredRound, setFilteredRound] = useState(null);
@@ -76,22 +72,8 @@ const AdminDashboard = () => {
     { id: 'r7', label: 'Fun Round 2', icon: <FiZap />, year: 6, isFun: true },
     { id: 'r8', label: 'Fun Round 3', icon: <FiZap />, year: 7, isFun: true },
     { id: 'r9', label: 'Fun Round 4', icon: <FiZap />, year: 8, isFun: true },
-    { id: 'r10', label: 'Fun Round 5', icon: <FiZap />, year: 9, isFun: true },
-    { id: 'r11', label: 'Fun Round 6', icon: <FiZap />, year: 10, isFun: true },
   ];
 
-  const [funRounds, setFunRounds] = useState([]);
-
-  const addFunRound = () => {
-    const nextNum = funRounds.length + 1;
-    const nextYear = 4 + nextNum;
-    if (nextYear > 9) {
-      setMsg({ type: 'error', text: 'Maximum fun rounds reached (Year 9).' });
-      return;
-    }
-    setFunRounds(prev => [...prev, { id: `funderon${nextNum}`, label: `Fun Round ${nextNum}`, year: nextYear }]);
-    setIsFunRoundsOpen(true);
-  };
 
   const [settings, setSettings] = useState(null);
   const [teams, setTeams] = useState([]);
@@ -581,51 +563,6 @@ const AdminDashboard = () => {
                 </button>
             ))}
 
-            {/* FUN ROUNDS COLLAPSIBLE */}
-            <div className="mt-[8px]">
-                <button
-                    onClick={() => setIsFunRoundsOpen(!isFunRoundsOpen)}
-                    className="w-full flex items-center justify-between px-[16px] py-[12px] rounded-[8px] text-[14px] font-medium text-[#9CA3AF] hover:text-[#F9FAFB] hover:bg-white/5 transition-all"
-                >
-                    <div className="flex items-center gap-[12px]">
-                        <FiStar className="text-yellow-500" size={18} />
-                        <span>Fun Rounds</span>
-                    </div>
-                    {isFunRoundsOpen ? <FiChevronUp /> : <FiChevronDown />}
-                </button>
-
-                {isFunRoundsOpen && (
-                    <div className="flex flex-col gap-[4px] mt-[4px] ml-[16px] border-l border-[#1F2937] pl-[8px] animate-in slide-in-from-top-2 duration-200">
-                        {funRounds.map(round => {
-                            const qCount = questions.filter(q => q.year === round.year).length;
-                            return (
-                                <button
-                                    key={round.id}
-                                    onClick={() => navigate(`/admin/${round.id}`)}
-                                    className={`w-full flex items-center justify-between px-[16px] py-[10px] rounded-[8px] transition-all text-[13px] ${
-                                        activeTab === round.id 
-                                        ? 'bg-yellow-500/10 text-yellow-500 border border-yellow-500/20' 
-                                        : 'text-[#6B7280] hover:text-[#F9FAFB] hover:bg-white/5'
-                                    }`}
-                                >
-                                    <div className="flex flex-col items-start">
-                                        <span className="font-semibold">{round.label}</span>
-                                        <span className="text-[10px] opacity-60 uppercase tracking-tighter">{qCount} Questions</span>
-                                    </div>
-                                    {activeTab === round.id && <FiZap size={10} className="animate-pulse" />}
-                                </button>
-                            );
-                        })}
-                        <button
-                            onClick={addFunRound}
-                            className="w-full flex items-center gap-[8px] px-[16px] py-[10px] rounded-[8px] text-[12px] font-bold text-[#7C3AED] hover:bg-[#7C3AED]/10 transition-all uppercase tracking-widest mt-[4px]"
-                        >
-                            <FiPlusSquare size={16} />
-                            <span>Create Round</span>
-                        </button>
-                    </div>
-                )}
-            </div>
 
             <button
                 onClick={() => navigate('/admin/fun-leaderboard')}

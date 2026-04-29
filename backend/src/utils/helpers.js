@@ -27,7 +27,7 @@ function generateSubmissionId() {
 function scoreAnswer(question, userAnswer) {
   if (!question) return 0;
   
-  const fullScore = question.scoringRubric?.full || 10;
+  const fullScore = question.scoringRubric?.full || 100;
   const partialScore = question.scoringRubric?.partial || 0;
   const incorrectScore = question.scoringRubric?.incorrect || 0;
 
@@ -103,6 +103,10 @@ function scoreAnswer(question, userAnswer) {
       return normalize(userAnswer) === normalize(question.correctAnswer) ? fullScore : incorrectScore;
 
     default:
+      if (typeof userAnswer === 'string' && typeof question.correctAnswer === 'string') {
+        const normalize = (s) => String(s).replace(/\s+/g, '').toLowerCase();
+        return normalize(userAnswer) === normalize(question.correctAnswer) ? fullScore : incorrectScore;
+      }
       return userAnswer === question.correctAnswer ? fullScore : incorrectScore;
   }
 }

@@ -38,6 +38,8 @@ import {
     FiChevronRight,
     FiChevronLeft,
     FiSkipForward,
+    FiBarChart2,
+    FiStopCircle as FiXCircle,
 } from 'react-icons/fi';
 
 const AdminDashboard = () => {
@@ -116,8 +118,8 @@ const AdminDashboard = () => {
 
   useEffect(() => {
     let interval;
-    const isFunTabActive = menuItems.find(m => m.id === activeTab)?.isFun;
-    if (isFunTabActive && settings?.isRoundActive) {
+    const isFunActive = settings?.isRoundActive && (settings?.currentRound >= 5);
+    if (isFunActive) {
       fetchActiveQuestionStats();
       interval = setInterval(fetchActiveQuestionStats, 2000);
     }
@@ -600,9 +602,77 @@ const AdminDashboard = () => {
 
       {/* Main Content Area */}
       <main className="flex-1 ml-[280px] p-[48px] min-h-screen relative">
+        {/* ── SLEEK HORIZONTAL FUN ROUND MONITORING BANNER ── */}
+        {settings?.isRoundActive && (settings?.currentRound || 0) >= 5 && (
+            <div className="mb-[32px] animate-in slide-in-from-top-4 duration-500">
+                <div className="w-full bg-[#0B0F14] border border-white/10 rounded-[20px] p-[16px] flex items-center justify-between shadow-xl relative overflow-hidden">
+                    {/* Visual Accent */}
+                    <div className="absolute left-0 top-0 bottom-0 w-[4px] bg-yellow-500" />
+                    
+                    {/* Left: Phase Info & Stats */}
+                    <div className="flex items-center gap-[24px] ml-[8px]">
+                        <div className="flex items-center gap-[12px] pr-[24px] border-r border-white/10">
+                            <div className="w-[40px] h-[40px] rounded-[10px] bg-yellow-500/10 flex items-center justify-center">
+                                <FiZap className="text-yellow-500" size={20} />
+                            </div>
+                            <div>
+                                <span className="text-[10px] font-black text-yellow-500 uppercase tracking-widest block mb-[2px]">Phase Live</span>
+                                <h3 className="text-[16px] font-black text-white leading-none">Round {(settings?.currentRound || 0) - 4}</h3>
+                            </div>
+                        </div>
+
+                        {/* Submission Card (The "Simple Card") */}
+                        <div className="bg-white/5 rounded-[12px] px-[20px] py-[10px] border border-white/5 flex items-center gap-[16px]">
+                            <div className="flex flex-col">
+                                <span className="text-[9px] font-black text-[#6B7280] uppercase tracking-widest mb-[2px]">Submissions</span>
+                                <div className="flex items-baseline gap-[4px] leading-none">
+                                    <span className="text-[24px] font-black text-yellow-500 tabular-nums">{activeQuestionStats.answeredCount}</span>
+                                    <span className="text-[14px] font-bold text-white/20">/ {activeQuestionStats.totalTeams}</span>
+                                </div>
+                            </div>
+                            <div className="h-[32px] w-[1px] bg-white/10" />
+                            <div className="flex flex-col">
+                                <span className="text-[9px] font-black text-[#6B7280] uppercase tracking-widest mb-[2px]">Accuracy</span>
+                                <span className="text-[18px] font-black text-white leading-none tabular-nums">
+                                    {activeQuestionStats.totalTeams > 0 ? Math.round((activeQuestionStats.answeredCount / activeQuestionStats.totalTeams) * 100) : 0}%
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Ranking Button (Beside the card) */}
+                        <button
+                            onClick={() => navigate('/admin/fun-leaderboard')}
+                            className="flex items-center gap-[8px] px-[16px] py-[10px] bg-yellow-500/10 hover:bg-yellow-500 text-yellow-500 hover:text-black border border-yellow-500/20 rounded-[12px] text-[11px] font-black uppercase tracking-widest transition-all group"
+                        >
+                            <FiBarChart2 size={16} className="group-hover:scale-110 transition-transform" />
+                            View Rankings
+                        </button>
+                    </div>
+
+                    {/* Right: Actions */}
+                    <div className="flex items-center gap-[24px] mr-[8px]">
+                        <div className="flex flex-col items-end">
+                            <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest mb-[2px] flex items-center gap-[4px]">
+                                <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                Monitoring Active
+                            </span>
+                            <span className="text-[10px] text-white/40 font-mono tracking-tighter uppercase">Sync: OK</span>
+                        </div>
+                        <button
+                            onClick={() => handleStartStopRound(false, settings.currentRound)}
+                            className="px-[16px] py-[10px] bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/20 rounded-[12px] text-[11px] font-black uppercase tracking-widest transition-all flex items-center gap-[8px]"
+                        >
+                            <FiStopCircle size={16} />
+                            Terminate
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
+
         {/* Round Init Banner */}
-        {/* ── Live Round Panel ── */}
-        {settings?.isRoundActive && roundTimeLeft !== null && (
+        {/* ── Live Round Panel (Standard Rounds Only) ── */}
+        {settings?.isRoundActive && roundTimeLeft !== null && (settings?.currentRound || 0) < 5 && (
             <div className={`mb-[24px] rounded-[14px] border overflow-hidden ${
                 roundTimeLeft < 300 ? 'border-red-500/40 bg-red-500/5' : 'border-[#7C3AED]/30 bg-[#7C3AED]/5'
             }`}>
@@ -632,25 +702,44 @@ const AdminDashboard = () => {
                 {/* Submission stats row */}
                 {roundSubs && (
                     <div className="px-[20px] py-[12px] border-t border-[#1F2937] bg-[#0B0F14]/50 flex flex-wrap items-center gap-[16px]">
-                        <div className="flex items-center gap-[6px]">
-                            <span className="text-[11px] text-[#6B7280] font-medium">Teams:</span>
-                            <span className="text-[13px] font-bold text-[#F9FAFB]">{roundSubs.totalTeams}</span>
-                        </div>
-                        <div className="h-[14px] w-[1px] bg-[#1F2937]" />
-                        {[
-                            { label: 'CTO', count: roundSubs.ctoSubmitted, color: '#7C3AED' },
-                            { label: 'CFO', count: roundSubs.cfoSubmitted, color: '#f59e0b' },
-                            { label: 'PM', count: roundSubs.pmSubmitted, color: '#10b981' },
-                        ].map(({ label, count, color }) => (
-                            <div key={label} className="flex items-center gap-[6px]">
-                                <span className="text-[10px] font-bold uppercase px-[5px] py-[1px] rounded" style={{ color, background: `${color}15`, border: `1px solid ${color}30` }}>{label}</span>
-                                <span className="text-[13px] font-bold text-[#F9FAFB]">{count}<span className="text-[#6B7280]">/{roundSubs.totalTeams}</span></span>
+                        {(settings?.currentRound || 0) >= 5 ? (
+                            <div className="flex items-center gap-[12px] w-full">
+                                <div className="flex items-center gap-[6px]">
+                                    <span className="text-[11px] text-[#6B7280] font-medium uppercase tracking-wider">Correct Submissions:</span>
+                                    <div className="flex items-center gap-[8px] bg-yellow-500/10 border border-yellow-500/20 px-[12px] py-[4px] rounded-full">
+                                        <FiCheckCircle size={14} className="text-yellow-500" />
+                                        <span className="text-[16px] font-black text-yellow-500 tabular-nums">
+                                            {activeQuestionStats.answeredCount}
+                                            <span className="text-yellow-500/50 font-medium text-[12px] ml-[4px]">/ {activeQuestionStats.totalTeams}</span>
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="h-[14px] w-[1px] bg-[#1F2937]" />
+                                <span className="text-[11px] text-[#6B7280] font-medium animate-pulse">Waiting for more successful solutions...</span>
                             </div>
-                        ))}
-                        <div className="h-[14px] w-[1px] bg-[#1F2937]" />
-                        <span className={`text-[11px] font-bold ${roundSubs.allTeamsComplete ? 'text-emerald-400' : 'text-[#6B7280]'}`}>
-                            {roundSubs.allTeamsComplete ? '✓ All teams submitted' : `${roundSubs.teams?.filter(t => t.allDone).length || 0}/${roundSubs.totalTeams} complete`}
-                        </span>
+                        ) : (
+                            <>
+                                <div className="flex items-center gap-[6px]">
+                                    <span className="text-[11px] text-[#6B7280] font-medium">Teams:</span>
+                                    <span className="text-[13px] font-bold text-[#F9FAFB]">{roundSubs.totalTeams}</span>
+                                </div>
+                                <div className="h-[14px] w-[1px] bg-[#1F2937]" />
+                                {[
+                                    { label: 'CTO', count: roundSubs.ctoSubmitted, color: '#7C3AED' },
+                                    { label: 'CFO', count: roundSubs.cfoSubmitted, color: '#f59e0b' },
+                                    { label: 'PM', count: roundSubs.pmSubmitted, color: '#10b981' },
+                                ].map(({ label, count, color }) => (
+                                    <div key={label} className="flex items-center gap-[6px]">
+                                        <span className="text-[10px] font-bold uppercase px-[5px] py-[1px] rounded" style={{ color, background: `${color}15`, border: `1px solid ${color}30` }}>{label}</span>
+                                        <span className="text-[13px] font-bold text-[#F9FAFB]">{count}<span className="text-[#6B7280]">/{roundSubs.totalTeams}</span></span>
+                                    </div>
+                                ))}
+                                <div className="h-[14px] w-[1px] bg-[#1F2937]" />
+                                <span className={`text-[11px] font-bold ${roundSubs.allTeamsComplete ? 'text-emerald-400' : 'text-[#6B7280]'}`}>
+                                    {roundSubs.allTeamsComplete ? '✓ All teams submitted' : `${roundSubs.teams?.filter(t => t.allDone).length || 0}/${roundSubs.totalTeams} complete`}
+                                </span>
+                            </>
+                        )}
                     </div>
                 )}
             </div>
@@ -757,6 +846,75 @@ const AdminDashboard = () => {
                             </div>
                         </div>
                     )}
+                </div>
+            </div>
+        )}
+
+        {/* ── Experimental Phase Card (Fun Rounds 5+) ── */}
+        {settings?.isRoundActive && (settings?.currentRound || 0) >= 5 && (
+            <div className="mb-[32px] bg-[#111827] border border-yellow-500/20 rounded-[16px] p-[24px] shadow-glow-yellow-sm animate-in fade-in slide-in-from-top-4 duration-500">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-[24px]">
+                    <div className="flex items-center gap-[20px]">
+                        <div className="w-[64px] h-[64px] bg-yellow-500/10 border border-yellow-500/20 rounded-[14px] flex items-center justify-center text-yellow-500">
+                            <FiActivity size={32} />
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-[8px]">
+                                <span className="flex h-2 w-2 rounded-full bg-yellow-500 animate-pulse" />
+                                <h3 className="text-[12px] font-bold text-yellow-500 uppercase tracking-[0.2em]">Experimental Phase Live</h3>
+                            </div>
+                            <p className="text-[28px] font-black text-[#F9FAFB] tracking-tight mt-[2px]">
+                                Fun Round {(settings?.currentRound || 0) - 4}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-[32px]">
+                        {/* Submission Scoreboard Card */}
+                        <div className="bg-[#0B0F14] border border-[#1F2937] px-[32px] py-[16px] rounded-[12px] text-center shadow-inner min-w-[180px]">
+                            <div className="text-[42px] font-black text-yellow-500 leading-none tabular-nums">
+                                {activeQuestionStats.answeredCount}
+                                <span className="text-yellow-500/30 text-[24px] ml-[8px]">/ {activeQuestionStats.totalTeams}</span>
+                            </div>
+                            <div className="text-[11px] text-[#9CA3AF] uppercase font-black tracking-[0.15em] mt-[8px]">
+                                Correct Submissions
+                            </div>
+                        </div>
+
+                        {/* Performance Metrics / Status */}
+                        <div className="flex flex-col gap-[12px] min-w-[200px]">
+                            <div className="flex items-center gap-[12px]">
+                                <div className="text-left">
+                                    <span className="text-[10px] text-[#6B7280] uppercase font-bold tracking-widest block">Success Rate</span>
+                                    <span className="text-[24px] font-bold text-[#F9FAFB] tabular-nums">
+                                        {activeQuestionStats.totalTeams > 0 ? Math.round((activeQuestionStats.answeredCount / activeQuestionStats.totalTeams) * 100) : 0}%
+                                    </span>
+                                </div>
+                                <div className="h-[32px] w-[1px] bg-[#1F2937]" />
+                                <div className="text-left">
+                                    <span className="text-[10px] text-[#6B7280] uppercase font-bold tracking-widest block">Status</span>
+                                    <span className="text-[14px] font-bold text-emerald-400 animate-pulse">
+                                        Receiving Data...
+                                    </span>
+                                </div>
+                            </div>
+                            <div className="w-full h-[6px] bg-[#1F2937] rounded-full overflow-hidden">
+                                <div 
+                                    className="h-full bg-yellow-500 transition-all duration-1000" 
+                                    style={{ width: `${activeQuestionStats.totalTeams > 0 ? (activeQuestionStats.answeredCount / activeQuestionStats.totalTeams) * 100 : 0}%` }}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Admin Action */}
+                        <button
+                            onClick={() => handleStartStopRound(false, settings.currentRound)}
+                            className="h-[56px] px-[24px] bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white border border-red-500/20 rounded-[12px] text-[12px] font-bold uppercase tracking-widest transition-all flex items-center gap-[10px]"
+                        >
+                            <FiXCircle size={18} />
+                            Terminate Phase
+                        </button>
+                    </div>
                 </div>
             </div>
         )}
@@ -1322,7 +1480,7 @@ const AdminDashboard = () => {
                            (yd.answers.fun && Object.keys(yd.answers.fun).length > 0);
                 });
                 
-                const isLocked = tabYear < settings?.currentRound || (tabYear === settings?.currentRound && !settings?.isRoundActive && hasProg);
+                const isLocked = tabYear < settings?.currentRound;
 
                 const funQs = isFunTab
                   ? questions.filter(q => q.year === tabYear && q.role === 'fun')
@@ -1330,7 +1488,28 @@ const AdminDashboard = () => {
                 const currentFunIdx = funQs.findIndex(q => q.questionId === settings?.activeFunQuestionId);
                 const currentFunQ = currentFunIdx >= 0 ? funQs[currentFunIdx] : null;
 
-                let btnIcon, btnLabel, btnStyle;
+                const isPreviousRoundComplete = (yr) => {
+                    if (yr <= 0) return true;
+                    // For Fun Rounds (5-9), we don't enforce strict sequential completion from standard rounds
+                    if (yr >= 5) return true;
+                    
+                    const prevYearKey = `year${yr - 1}`;
+                    const targetTeams = teams.filter(t => t.teamId !== 'ADMIN-EVENT-2026');
+                    
+                    if (targetTeams.length === 0) return true;
+                    
+                    return targetTeams.every(team => {
+                        const rd = team.gameState?.[prevYearKey];
+                        if (!rd || !rd.answers) return false;
+                        // Check if all 3 standard roles submitted
+                        const roles = ['cto', 'cfo', 'pm'];
+                        return roles.every(role => rd.answers[role] && Object.keys(rd.answers[role]).length > 0);
+                    });
+                };
+
+                const prevComplete = isPreviousRoundComplete(tabYear);
+
+                let btnIcon, btnLabel, btnStyle, isDisabled = false;
                 if (isThisRoundLive) {
                     btnIcon = <FiStopCircle size={20} />;
                     btnLabel = 'STOP ROUND';
@@ -1339,6 +1518,12 @@ const AdminDashboard = () => {
                     btnIcon = <FiLock size={20} />;
                     btnLabel = 'ROUND LOCKED';
                     btnStyle = 'opacity-50 cursor-not-allowed';
+                    isDisabled = true;
+                } else if (!prevComplete && tabYear < 5) {
+                    btnIcon = <FiLock size={20} />;
+                    btnLabel = 'PREVIOUS ROUND INCOMPLETE';
+                    btnStyle = 'bg-[#1F2937] text-[#6B7280] opacity-50 cursor-not-allowed';
+                    isDisabled = true;
                 } else {
                     btnIcon = <FiPlay size={20} />;
                     btnLabel = 'INITIALIZE ROUND';
@@ -1374,9 +1559,14 @@ const AdminDashboard = () => {
 
                                 <Button
                                     variant={isThisRoundLive ? 'secondary' : 'primary'}
+                                    disabled={isDisabled}
                                     onClick={() => {
                                         if (isLocked) {
-                                            setMsg({ type: 'error', text: 'This round is permanently locked. Use Reset Competition to start over.' });
+                                            setMsg({ type: 'error', text: 'Round locked: Existing submissions detected. Go to Profile > Danger Zone to reset progress.' });
+                                            return;
+                                        }
+                                        if (!prevComplete && tabYear < 5) {
+                                            setMsg({ type: 'error', text: 'Operational Restriction: All teams must complete the previous round before advancing.' });
                                             return;
                                         }
                                         handleStartStopRound(!isThisRoundLive);
@@ -2063,6 +2253,20 @@ const AdminDashboard = () => {
                                     className="shrink-0 ml-[16px] px-[20px] py-[10px] bg-red-500/10 border border-red-500/30 text-red-400 text-[12px] font-bold uppercase tracking-wider rounded-[10px] hover:bg-red-500/20 hover:border-red-500/50 transition-all"
                                 >
                                     Reset Progress
+                                </button>
+                            </div>
+
+                            {/* Total Reset */}
+                            <div className="flex items-center justify-between p-[16px] bg-[#0B0F14] rounded-[12px] border border-[#1F2937]">
+                                <div>
+                                    <p className="text-[14px] font-semibold text-red-500">Reset Competition</p>
+                                    <p className="text-[12px] text-[#6B7280]">DANGEROUS: Deletes all teams, scores, and resets global settings to defaults. Use this for a fresh start.</p>
+                                </div>
+                                <button
+                                    onClick={() => handleReset('total')}
+                                    className="shrink-0 ml-[16px] px-[20px] py-[10px] bg-red-600/20 border border-red-600/40 text-red-500 text-[12px] font-bold uppercase tracking-wider rounded-[10px] hover:bg-red-600/30 hover:border-red-600/60 transition-all"
+                                >
+                                    Reset Competition
                                 </button>
                             </div>
 

@@ -285,11 +285,6 @@ export default function ProfilePage() {
                 Handbook
             </button>
 
-            <a href="/handbook.pdf" download className="h-[32px] px-12 rounded bg-brand-surface border border-brand-border flex items-center gap-6 text-brand-text-secondary hover:text-brand-primary transition-colors text-[11px] font-bold uppercase tracking-wider">
-                <FiDownload size={12} />
-                PDF
-            </a>
-
             <button 
                 onClick={() => navigate('/training')} 
                 className="h-[32px] px-12 rounded bg-brand-surface border border-brand-border text-brand-text-secondary hover:text-brand-primary hover:bg-white/5 flex items-center gap-6 transition-all text-[11px] font-bold uppercase tracking-wider"
@@ -327,26 +322,27 @@ export default function ProfilePage() {
 
         {/* Handbook Modal */}
         {isHandbookOpen && (
-          <div className="fixed inset-0 z-[100] flex justify-end p-12 bg-black/60 backdrop-blur-md animate-in fade-in duration-300">
-            <aside className="w-full max-w-[600px] h-full bg-brand-bg border border-brand-border rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-right-8 duration-500">
-              <div className="px-20 py-12 border-b border-brand-border bg-brand-surface flex justify-between items-center">
-                <div className="flex items-center gap-12">
-                    <div className="p-8 bg-brand-primary/10 rounded-lg text-brand-primary">
-                        <FiBook size={18} />
+          <div className="fixed inset-0 z-[100] flex justify-end py-12 px-24 bg-black/80 backdrop-blur-md animate-in fade-in duration-300">
+            <aside className="w-full max-w-[750px] h-full bg-[#0B0F14] border border-brand-border rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-right-8 duration-500">
+              <div className="px-16 py-8 border-b border-brand-border bg-brand-surface flex justify-between items-center h-[52px]">
+                <div className="flex items-center gap-10">
+                    <div className="p-6 bg-brand-primary/10 rounded-lg text-brand-primary">
+                        <FiBook size={16} />
                     </div>
-                    <span className="font-bold text-12 uppercase tracking-widest text-brand-text-primary">Strategic Handbook</span>
+                    <span className="font-bold text-[11px] uppercase tracking-[0.2em] text-brand-text-primary">Strategic Handbook</span>
                 </div>
                 <div className="flex items-center gap-8">
-                  <a href="/handbook.pdf" download className="p-8 rounded-lg hover:bg-brand-primary/10 text-brand-text-muted hover:text-brand-primary transition-colors" title="Download Official Copy">
-                    <FiDownload size={18} />
-                  </a>
-                  <button onClick={() => setIsHandbookOpen(false)} className="p-8 rounded-lg hover:bg-red-500/10 text-brand-text-muted hover:text-red-400 transition-colors">
-                    <FiX size={20} />
+                  <button onClick={() => setIsHandbookOpen(false)} className="p-6 rounded-lg hover:bg-white/5 text-brand-text-muted hover:text-white transition-all">
+                    <FiX size={18} />
                   </button>
                 </div>
               </div>
-              <div className="flex-1 bg-white">
-                <iframe src="/handbook.pdf#view=FitH&toolbar=0" className="w-full h-full border-none" title="Handbook PDF" />
+              <div className="flex-1 bg-[#030712]">
+                <iframe 
+                  src="/CloudTycoon_Participant_Handbook_v3.pdf#toolbar=0&navpanes=0" 
+                  className="w-full h-full border-none" 
+                  title="Handbook PDF" 
+                />
               </div>
             </aside>
           </div>

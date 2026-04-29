@@ -6,7 +6,7 @@ import { questionsAPI, submissionsAPI, adminAPI, authAPI } from '../utils/api';
 import {
   FiClock, FiAlertCircle, FiChevronRight, FiChevronLeft,
   FiCheckCircle, FiLoader, FiActivity, FiLock, FiSend,
-  FiMaximize, FiLogOut
+  FiMaximize, FiLogOut, FiBookOpen, FiX
 } from 'react-icons/fi';
 import confetti from 'canvas-confetti';
 
@@ -27,6 +27,7 @@ const QuestionPage = () => {
   const [showWarning, setShowWarning] = useState(false);
   const [animDir, setAnimDir] = useState('right');
   const [animKey, setAnimKey] = useState(0);
+  const [showHandbook, setShowHandbook] = useState(false);
   const contentRef = useRef(null);
 
   const enterFullscreen = useCallback(() => {
@@ -516,172 +517,255 @@ const QuestionPage = () => {
 
       {/* ── Top Bar ── */}
       <div className="h-[52px] border-b border-[#1F2937] bg-[#0B0F14] flex items-center justify-between px-[20px] shrink-0 z-50">
-        <div className="flex items-center gap-[16px]">
-          <div className="flex items-center gap-[8px]">
-            <div className="w-[8px] h-[8px] bg-[#7C3AED] rounded-full animate-pulse" />
-            <span className="text-[13px] font-bold text-[#F9FAFB]">
-              {isFunRound ? `Fun Round ${parseInt(year) - 4}` : `Round ${parseInt(year) + 1}`}
-            </span>
-          </div>
-          <div className="h-[16px] w-[1px] bg-[#1F2937]" />
-          <span className="text-[11px] text-[#6B7280] font-medium uppercase">{role}</span>
-        </div>
-
-        <div className="flex items-center gap-[16px]">
-          {error && (
-            <div className="flex items-center gap-[6px] text-red-400 text-[11px] font-medium max-w-[300px] truncate">
-              <FiAlertCircle size={13} className="shrink-0" />
-              <span className="truncate">{error}</span>
+        {!isFullscreen ? (
+          <>
+            <div className="flex items-center gap-[16px]">
+              <div className="flex items-center gap-[8px]">
+                <div className="w-[8px] h-[8px] bg-[#7C3AED] rounded-full animate-pulse" />
+                <span className="text-[13px] font-bold text-[#F9FAFB]">
+                  {isFunRound ? `Fun Round ${parseInt(year) - 4}` : `Round ${parseInt(year) + 1}`}
+                </span>
+              </div>
+              <div className="h-[16px] w-[1px] bg-[#1F2937]" />
+              <span className="text-[11px] text-[#6B7280] font-medium uppercase">{role}</span>
             </div>
-          )}
 
-          <div
-            className="flex items-center gap-[8px] px-[12px] py-[5px] rounded-[8px] border transition-all"
-            style={{
-              background: isCriticalTime ? 'rgba(239,68,68,0.12)' : isLowTime ? 'rgba(245,158,11,0.08)' : '#111827',
-              borderColor: isCriticalTime ? 'rgba(239,68,68,0.3)' : isLowTime ? 'rgba(245,158,11,0.2)' : '#1F2937',
-            }}
-          >
-            <FiClock size={13} style={{ color: isCriticalTime ? '#ef4444' : isLowTime ? '#f59e0b' : '#7C3AED' }} />
-            <span
-              className="text-[15px] font-bold tabular-nums"
-              style={{ color: isCriticalTime ? '#ef4444' : isLowTime ? '#f59e0b' : '#F9FAFB' }}
-            >
-              {minutes}:{seconds}
-            </span>
-          </div>
+            <div className="flex items-center gap-[16px]">
+              {error && (
+                <div className="flex items-center gap-[6px] text-red-400 text-[11px] font-medium max-w-[300px] truncate">
+                  <FiAlertCircle size={13} className="shrink-0" />
+                  <span className="truncate">{error}</span>
+                </div>
+              )}
 
-          <button onClick={enterFullscreen} className="text-[#6B7280] hover:text-[#7C3AED] transition-colors p-[4px]" title="Fullscreen">
-            <FiMaximize size={15} />
-          </button>
-          <button onClick={handleExitQuiz} className="text-[#6B7280] hover:text-red-400 transition-colors p-[4px]" title="Exit">
-            <FiLogOut size={15} />
-          </button>
-        </div>
-      </div>
+              <button 
+                onClick={() => setShowHandbook(!showHandbook)}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  showHandbook 
+                    ? 'bg-[#7C3AED] text-white' 
+                    : 'bg-[#7C3AED]/10 text-[#A78BFA] border border-[#7C3AED]/20 hover:bg-[#7C3AED]/20'
+                }`}
+              >
+                <FiBookOpen size={14} />
+                {showHandbook ? 'Close Handbook' : 'Open Handbook'}
+              </button>
 
-      {/* ── Question Navigator ── */}
-      <div className="border-b border-[#1F2937] bg-[#0B0F14] px-[20px] py-[10px] shrink-0 z-40">
-        <div className="flex items-center gap-[6px] overflow-x-auto no-scrollbar">
-          {questions.map((q, i) => {
-            const isAnswered = answers[q.questionId] !== undefined && answers[q.questionId] !== '';
-            const isCurrent = i === currentIndex;
-            return (
-              <button
-                key={q.questionId}
-                onClick={() => goToQuestion(i)}
-                className="shrink-0 transition-all duration-200"
+              <div
+                className="flex items-center gap-[8px] px-[12px] py-[5px] rounded-[8px] border transition-all"
                 style={{
-                  width: isCurrent ? '36px' : '28px',
-                  height: isCurrent ? '36px' : '28px',
-                  borderRadius: '10px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: isCurrent ? '13px' : '11px',
-                  fontWeight: 700,
-                  background: isCurrent ? '#7C3AED' : isAnswered ? 'rgba(16,185,129,0.1)' : '#111827',
-                  border: `2px solid ${isCurrent ? '#7C3AED' : isAnswered ? 'rgba(16,185,129,0.3)' : '#1F2937'}`,
-                  color: isCurrent ? '#fff' : isAnswered ? '#10b981' : '#6B7280',
+                  background: isCriticalTime ? 'rgba(239,68,68,0.12)' : isLowTime ? 'rgba(245,158,11,0.08)' : '#111827',
+                  borderColor: isCriticalTime ? 'rgba(239,68,68,0.3)' : isLowTime ? 'rgba(245,158,11,0.2)' : '#1F2937',
                 }}
               >
-                {i + 1}
-              </button>
-            );
-          })}
-          <div className="ml-auto shrink-0 text-[11px] text-[#6B7280] font-medium pl-[12px]">
-            {answeredCount}/{questions.length} answered
-          </div>
-        </div>
-      </div>
+                <FiClock size={13} style={{ color: isCriticalTime ? '#ef4444' : isLowTime ? '#f59e0b' : '#7C3AED' }} />
+                <span
+                  className="text-[15px] font-bold tabular-nums"
+                  style={{ color: isCriticalTime ? '#ef4444' : isLowTime ? '#f59e0b' : '#F9FAFB' }}
+                >
+                  {minutes}:{seconds}
+                </span>
+              </div>
 
-      {/* ── Main Content ── */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar" ref={contentRef}>
-        {currentQuestion && (
-          <div
-            key={animKey}
-            className="max-w-[760px] mx-auto px-[24px] py-[32px] md:px-[40px] md:py-[40px]"
-            style={{
-              animation: `slideIn${animDir === 'right' ? 'Right' : 'Left'} 0.25s ease-out`,
-            }}
-          >
-            {/* Question number + type badge */}
-            <div className="flex items-center gap-[10px] mb-[16px]">
-              <span className="text-[12px] font-bold text-[#7C3AED]">Q{currentIndex + 1}</span>
-              <span className="text-[11px] text-[#6B7280] font-medium px-[8px] py-[2px] bg-[#111827] border border-[#1F2937] rounded-[6px]">
-                {currentQuestion.type === 'mcq' ? 'Multiple Choice'
-                  : currentQuestion.type === 'truefalse' ? 'True / False'
-                  : currentQuestion.type === 'multi-select' ? 'Multi-Select'
-                  : currentQuestion.type === 'range' ? 'Range Input'
-                  : currentQuestion.type === 'numerical' ? 'Numerical'
-                  : currentQuestion.type === 'text' ? 'Text Response'
-                  : currentQuestion.type === 'rating' ? 'Rating'
-                  : currentQuestion.type}
-              </span>
-              {currentQuestion.points && (
-                <span className="text-[11px] text-[#f59e0b] font-bold">{currentQuestion.points} pts</span>
+              <button onClick={enterFullscreen} className="text-[#6B7280] hover:text-[#7C3AED] transition-colors p-[4px]" title="Fullscreen">
+                <FiMaximize size={15} />
+              </button>
+              <button onClick={handleExitQuiz} className="text-[#6B7280] hover:text-red-400 transition-colors p-[4px]" title="Exit">
+                <FiLogOut size={15} />
+              </button>
+            </div>
+          </>
+        ) : (
+          /* Simplified Bar for Lockdown Mode */
+          <>
+            <div className="flex items-center gap-4">
+              <button 
+                onClick={() => setShowHandbook(!showHandbook)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-black transition-all ${
+                  showHandbook 
+                    ? 'bg-red-500/20 text-red-400 border border-red-500/40' 
+                    : 'bg-[#7C3AED] text-white shadow-[0_0_20px_rgba(124,58,237,0.3)] hover:scale-105 active:scale-95'
+                }`}
+              >
+                {showHandbook ? <FiX size={18} /> : <FiBookOpen size={18} />}
+                {showHandbook ? 'CLOSE HANDBOOK' : 'OPEN HANDBOOK'}
+              </button>
+              {error && (
+                <div className="flex items-center gap-2 text-red-400 text-xs font-bold bg-red-500/5 px-3 py-1.5 rounded-lg border border-red-500/10">
+                  <FiAlertCircle size={14} className="shrink-0" />
+                  <span className="uppercase tracking-wider">{error}</span>
+                </div>
               )}
             </div>
 
-            {/* Asset (image/video) */}
-            {currentQuestion.assetUrl && (
-              <div className="mb-[20px] rounded-[14px] overflow-hidden border border-[#1F2937] bg-[#0B0F14]">
-                {currentQuestion.assetUrl.includes('video') || currentQuestion.assetUrl.endsWith('.mp4') ? (
-                  <video src={currentQuestion.assetUrl} controls className="max-w-full max-h-[320px] mx-auto" />
-                ) : (
-                  <img src={currentQuestion.assetUrl} alt="" className="max-w-full max-h-[320px] mx-auto object-contain" />
-                )}
-              </div>
-            )}
-
-            {/* Question text */}
-            <h2 className="text-[20px] md:text-[22px] font-semibold text-[#F9FAFB] leading-[1.5] mb-[28px]">
-              {currentQuestion.question}
-            </h2>
-
-            {/* Options */}
-            {renderOptions()}
-          </div>
+            <div
+              className="flex items-center gap-3 px-6 py-2 rounded-xl border-2 transition-all shadow-inner"
+              style={{
+                background: isCriticalTime ? 'rgba(239,68,68,0.1)' : isLowTime ? 'rgba(245,158,11,0.05)' : '#030712',
+                borderColor: isCriticalTime ? '#ef4444' : isLowTime ? '#f59e0b' : '#1F2937',
+              }}
+            >
+              <FiClock size={18} className="animate-pulse" style={{ color: isCriticalTime ? '#ef4444' : isLowTime ? '#f59e0b' : '#7C3AED' }} />
+              <span
+                className="text-2xl font-black tabular-nums tracking-tighter"
+                style={{ color: isCriticalTime ? '#ef4444' : isLowTime ? '#f59e0b' : '#F9FAFB' }}
+              >
+                {minutes}:{seconds}
+              </span>
+            </div>
+          </>
         )}
       </div>
 
-      {/* ── Bottom Navigation ── */}
-      <div className="h-[60px] border-t border-[#1F2937] bg-[#0B0F14] flex items-center px-[20px] shrink-0 z-40">
-        <div className="max-w-[760px] mx-auto w-full flex items-center justify-between">
-          <button
-            onClick={() => goToQuestion(Math.max(0, currentIndex - 1))}
-            disabled={currentIndex === 0}
-            className={`flex items-center gap-[6px] px-[16px] py-[8px] rounded-[10px] text-[13px] font-medium transition-all ${
-              currentIndex === 0
-                ? 'opacity-25 cursor-not-allowed text-[#6B7280]'
-                : 'text-[#D1D5DB] hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <FiChevronLeft size={16} />
-            Previous
-          </button>
+      {/* ── Split Layout Container ── */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Left Side: Quiz Content */}
+        <div className={`flex flex-col flex-1 overflow-hidden transition-all duration-500 ease-in-out ${showHandbook ? 'w-[55%]' : 'w-full'}`}>
+          {/* ── Question Navigator ── */}
+          <div className="border-b border-[#1F2937] bg-[#0B0F14] px-[20px] py-[10px] shrink-0 z-40">
+            <div className="flex items-center gap-[6px] overflow-x-auto no-scrollbar">
+              {questions.map((q, i) => {
+                const isAnswered = answers[q.questionId] !== undefined && answers[q.questionId] !== '';
+                const isCurrent = i === currentIndex;
+                return (
+                  <button
+                    key={q.questionId}
+                    onClick={() => goToQuestion(i)}
+                    className="shrink-0 transition-all duration-200"
+                    style={{
+                      width: isCurrent ? '36px' : '28px',
+                      height: isCurrent ? '36px' : '28px',
+                      borderRadius: '10px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: isCurrent ? '13px' : '11px',
+                      fontWeight: 700,
+                      background: isCurrent ? '#7C3AED' : isAnswered ? 'rgba(16,185,129,0.1)' : '#111827',
+                      border: `2px solid ${isCurrent ? '#7C3AED' : isAnswered ? 'rgba(16,185,129,0.3)' : '#1F2937'}`,
+                      color: isCurrent ? '#fff' : isAnswered ? '#10b981' : '#6B7280',
+                    }}
+                  >
+                    {i + 1}
+                  </button>
+                );
+              })}
+              <div className="ml-auto shrink-0 text-[11px] text-[#6B7280] font-medium pl-[12px]">
+                {answeredCount}/{questions.length} answered
+              </div>
+            </div>
+          </div>
 
-          <div className="flex items-center gap-[10px]">
-            {currentIndex < questions.length - 1 ? (
-              <button
-                onClick={() => goToQuestion(Math.min(questions.length - 1, currentIndex + 1))}
-                className="flex items-center gap-[6px] bg-[#7C3AED] hover:bg-[#6D28D9] text-white px-[20px] py-[9px] rounded-[10px] font-bold text-[13px] transition-all"
+          {/* ── Main Content ── */}
+          <div className="flex-1 overflow-y-auto custom-scrollbar" ref={contentRef}>
+            {currentQuestion && (
+              <div
+                key={animKey}
+                className={`mx-auto px-[24px] py-[32px] md:px-[40px] md:py-[40px] transition-all duration-500 ${showHandbook ? 'max-w-full' : 'max-w-[760px]'}`}
+                style={{
+                  animation: `slideIn${animDir === 'right' ? 'Right' : 'Left'} 0.25s ease-out`,
+                }}
               >
-                Next
-                <FiChevronRight size={16} />
-              </button>
-            ) : (
-              <button
-                onClick={handleSubmit}
-                disabled={submitting}
-                className="flex items-center gap-[6px] bg-emerald-600 hover:bg-emerald-700 text-white px-[20px] py-[9px] rounded-[10px] font-bold text-[13px] transition-all disabled:opacity-50"
-              >
-                {submitting ? <FiLoader className="animate-spin" size={14} /> : <FiSend size={14} />}
-                Submit Answers
-              </button>
+                {/* Question number + type badge */}
+                <div className="flex items-center gap-[10px] mb-[16px]">
+                  <span className="text-[12px] font-bold text-[#7C3AED]">Q{currentIndex + 1}</span>
+                  <span className="text-[11px] text-[#6B7280] font-medium px-[8px] py-[2px] bg-[#111827] border border-[#1F2937] rounded-[6px]">
+                    {currentQuestion.type === 'mcq' ? 'Multiple Choice'
+                      : currentQuestion.type === 'truefalse' ? 'True / False'
+                      : currentQuestion.type === 'multi-select' ? 'Multi-Select'
+                      : currentQuestion.type === 'range' ? 'Range Input'
+                      : currentQuestion.type === 'numerical' ? 'Numerical'
+                      : currentQuestion.type === 'text' ? 'Text Response'
+                      : currentQuestion.type === 'rating' ? 'Rating'
+                      : currentQuestion.type}
+                  </span>
+                  {currentQuestion.points && (
+                    <span className="text-[11px] text-[#f59e0b] font-bold">{currentQuestion.points} pts</span>
+                  )}
+                </div>
+
+                {/* Asset (image/video) */}
+                {currentQuestion.assetUrl && (
+                  <div className="mb-[20px] rounded-[14px] overflow-hidden border border-[#1F2937] bg-[#0B0F14]">
+                    {currentQuestion.assetUrl.includes('video') || currentQuestion.assetUrl.endsWith('.mp4') ? (
+                      <video src={currentQuestion.assetUrl} controls className="max-w-full max-h-[320px] mx-auto" />
+                    ) : (
+                      <img src={currentQuestion.assetUrl} alt="" className="max-w-full max-h-[320px] mx-auto object-contain" />
+                    )}
+                  </div>
+                )}
+
+                {/* Question text */}
+                <h2 className="text-[20px] md:text-[22px] font-semibold text-[#F9FAFB] leading-[1.5] mb-[28px]">
+                  {currentQuestion.question}
+                </h2>
+
+                {/* Options */}
+                {renderOptions()}
+              </div>
             )}
           </div>
+
+          {/* ── Bottom Navigation ── */}
+          <div className="h-[60px] border-t border-[#1F2937] bg-[#0B0F14] flex items-center px-[20px] shrink-0 z-40">
+            <div className={`mx-auto w-full flex items-center justify-between transition-all duration-500 ${showHandbook ? 'max-w-full' : 'max-w-[760px]'}`}>
+              <button
+                onClick={() => goToQuestion(Math.max(0, currentIndex - 1))}
+                disabled={currentIndex === 0}
+                className={`flex items-center gap-[6px] px-[16px] py-[8px] rounded-[10px] text-[13px] font-medium transition-all ${
+                  currentIndex === 0
+                    ? 'opacity-25 cursor-not-allowed text-[#6B7280]'
+                    : 'text-[#D1D5DB] hover:text-white hover:bg-white/5'
+                }`}
+              >
+                <FiChevronLeft size={16} />
+                Previous
+              </button>
+
+              <div className="flex items-center gap-[10px]">
+                {currentIndex < questions.length - 1 ? (
+                  <button
+                    onClick={() => goToQuestion(Math.min(questions.length - 1, currentIndex + 1))}
+                    className="flex items-center gap-[6px] bg-[#7C3AED] hover:bg-[#6D28D9] text-white px-[20px] py-[9px] rounded-[10px] font-bold text-[13px] transition-all"
+                  >
+                    Next
+                    <FiChevronRight size={16} />
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleSubmit}
+                    disabled={submitting}
+                    className="flex items-center gap-[6px] bg-emerald-600 hover:bg-emerald-700 text-white px-[20px] py-[9px] rounded-[10px] font-bold text-[13px] transition-all disabled:opacity-50"
+                  >
+                    {submitting ? <FiLoader className="animate-spin" size={14} /> : <FiSend size={14} />}
+                    Submit Answers
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
+
+        {/* Right Side: Handbook Viewer */}
+        {showHandbook && (
+          <div className="w-[45%] border-l border-[#1F2937] bg-[#0B0F14] flex flex-col relative animate-slideInRight">
+            <div className="h-[40px] bg-[#111827] border-b border-[#1F2937] flex items-center justify-between px-4">
+              <span className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-widest">Participant Handbook</span>
+              <button 
+                onClick={() => setShowHandbook(false)}
+                className="text-[#6B7280] hover:text-white transition-colors"
+              >
+                <FiX size={18} />
+              </button>
+            </div>
+            <div className="flex-1 bg-[#030712]">
+              <iframe
+                src="/CloudTycoon_Participant_Handbook_v3.pdf#toolbar=0&navpanes=0"
+                className="w-full h-full border-none"
+                title="Handbook"
+              />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -117,7 +117,7 @@ router.post('/settings', verifyToken, verifyAdmin, async (req, res) => {
     // Invalidate caches
     if (isRedisReady()) {
       await redisClient.del('global:settings');
-      await redisClient.del('leaderboard:global');
+      await redisClient.del('global:leaderboard');
     }
 
     res.status(200).json(settings);
@@ -506,7 +506,13 @@ router.get('/analytics', verifyToken, verifyAdmin, async (req, res) => {
             if (JSON.stringify([...answer].sort()) === JSON.stringify([...correct].sort())) totalCorrect++;
           }
         } else {
-          totalCorrect++;
+          // Normalized text comparison for short answers
+          if (typeof answer === 'string' && typeof q.correctAnswer === 'string') {
+            const normalize = (s) => String(s).replace(/\s+/g, '').toLowerCase();
+            if (normalize(answer) === normalize(q.correctAnswer)) totalCorrect++;
+          } else if (answer === q.correctAnswer) {
+            totalCorrect++;
+          }
         }
       });
 
@@ -556,7 +562,7 @@ router.post('/session-recovery', verifyToken, verifyAdmin, async (req, res) => {
       await team.save();
 
       if (isRedisReady()) {
-        await redisClient.del('leaderboard:global');
+        await redisClient.del('global:leaderboard');
       }
 
       return res.status(200).json({ success: true, message: `Session recovered for ${role} in ${teamId}. Player can re-enter round ${parseInt(year) + 1}.` });

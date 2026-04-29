@@ -68,34 +68,40 @@ router.post('/:year', verifyToken, async (req, res) => {
 
     let roleScore = calculateRoleScore(questionScores);
 
-    // SPEED-BASED SCORING FOR FUN ROUNDS (Year >= 5)
+    // SPEED-BASED RANK SCORING FOR FUN ROUNDS (Year >= 5)
     if (parseInt(year) >= 5) {
       const activeQId = settings.activeFunQuestionId;
+      if (!activeQId) return res.status(400).json({ error: 'No active fun question.' });
 
-      // Block duplicate submission for the same question
-      const alreadyAnswered = team.gameState?.[`year${year}`]?.answers?.[role]?.[activeQId];
-      if (alreadyAnswered !== undefined) {
-        return res.status(400).json({ error: 'Already submitted for this question.' });
+      // ENFORCE SINGLE PARTICIPANT: Check if ANY role from this team has already solved this question CORRECTLY
+      const teamYearState = team.gameState?.[`year${year}`] || {};
+      const allScores = teamYearState.questionScores || {};
+      const hasAnyRoleSolved = Object.values(allScores).some(roleScores => roleScores[activeQId] > 0);
+      
+      if (hasAnyRoleSolved) {
+        return res.status(403).json({ error: 'This question has already been solved by your team!' });
       }
 
-      const isCorrect = activeQId && questionScores[activeQId] > 0;
+      const isCorrect = questionScores[activeQId] > 0;
 
-      if (isCorrect && settings.roundStartedAt) {
-        const elapsedMs = Date.now() - new Date(settings.roundStartedAt).getTime();
-        const maxTimeMs = 20 * 60 * 1000;
-        const timeRatio = Math.max(0, 1 - (elapsedMs / maxTimeMs));
-        roleScore = Math.round(1000 * timeRatio);
-        roleScore = Math.max(roleScore, 10);
-        console.log(`[FUN ROUND] Team ${teamId} correct in ${(elapsedMs/1000).toFixed(2)}s. Score: ${roleScore} pts`);
-      } else if (isCorrect) {
-        const submissionRank = await Submission.countDocuments({
+      if (!isCorrect) {
+        return res.status(400).json({ error: 'Wrong answer! Try again.', isCorrect: false });
+      }
+
+      if (isCorrect) {
+        // Count how many OTHER teams have already submitted a CORRECT answer for this specific question
+        const correctSubmissionsCount = await Submission.countDocuments({
           year: parseInt(year),
-          [`scores.questionScores.${activeQId}`]: { $gt: 0 }
+          [`scores.questionScores.${activeQId}`]: { $gt: 0 },
+          teamId: { $ne: teamId } // Don't count self if there was a retry (though blocked above)
         });
-        roleScore = Math.max(0, 1000 - (submissionRank * 50));
+
+        // 1st: 1000, 2nd: 950, 3rd: 900... min 50
+        roleScore = Math.max(50, 1000 - (correctSubmissionsCount * 50));
+        console.log(`[FUN ROUND] Team ${teamId} (${role}) Correct! Rank: ${correctSubmissionsCount + 1}. Score: ${roleScore} pts`);
       } else {
         roleScore = 0;
-        console.log(`[FUN ROUND] Team ${teamId} answered incorrectly. 0 pts.`);
+        console.log(`[FUN ROUND] Team ${teamId} (${role}) Incorrect answer. 0 pts.`);
       }
     }
     
@@ -124,7 +130,8 @@ router.post('/:year', verifyToken, async (req, res) => {
       // Fun rounds: MERGE answers and ADD scores (multiple questions per round)
       const updateData = {
         [`gameState.${yearKey}.timeSpent.${role}`]: req.body.timeSpent || 0,
-        [`gameState.${yearKey}.submittedAt`]: new Date()
+        [`gameState.${yearKey}.submittedAt`]: new Date(),
+        $inc: { points: roleScore, funPoints: roleScore }
       };
       // Merge individual answers
       for (const [qId, answer] of Object.entries(answers)) {
@@ -140,7 +147,7 @@ router.post('/:year', verifyToken, async (req, res) => {
       const existingScore = team.gameState?.[yearKey]?.scores?.[role] || 0;
       updateData[`gameState.${yearKey}.scores.${role}`] = existingScore + roleScore;
 
-      await Team.updateOne({ teamId }, { $set: updateData });
+      await Team.updateOne({ teamId }, updateData);
     } else {
       // Normal rounds: replace as before
       const updateData = {
@@ -148,7 +155,8 @@ router.post('/:year', verifyToken, async (req, res) => {
         [`gameState.${yearKey}.scores.${role}`]: roleScore,
         [`gameState.${yearKey}.questionScores.${role}`]: questionScores,
         [`gameState.${yearKey}.timeSpent.${role}`]: req.body.timeSpent || 0,
-        [`gameState.${yearKey}.submittedAt`]: new Date()
+        [`gameState.${yearKey}.submittedAt`]: new Date(),
+        $inc: { points: roleScore }
       };
       await Team.updateOne({ teamId }, updateData);
     }
@@ -239,13 +247,8 @@ async function processYearCompletion(teamId, year) {
   }
   team.gameState[yearKey].timeSpent.outputTime = outputTime;
   team.gameState[yearKey].scores.roundAvg = roundTotal; 
+  // team.points and team.funPoints are now handled live in the submission route
 
-  team.points = (team.points || 0) + roundTotal;
-
-  // Separate Fun Points for the dedicated Fun Leaderboard
-  if (parseInt(year) >= 5) {
-    team.funPoints = (team.funPoints || 0) + roundTotal;
-  }
 
   // For Fun Rounds, we skip tycoon logic (revenue, bill, runway etc)
   if (parseInt(year) >= 5) {

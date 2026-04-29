@@ -4,7 +4,7 @@ import { useGameStore } from '../utils/store';
 import { questionsAPI, submissionsAPI, adminAPI, authAPI } from '../utils/api';
 import {
   FiZap, FiClock, FiSend, FiCheckCircle, FiLoader,
-  FiArrowLeft, FiImage
+  FiArrowLeft, FiImage, FiAlertCircle
 } from 'react-icons/fi';
 import confetti from 'canvas-confetti';
 
@@ -20,6 +20,7 @@ const FunRoundPage = () => {
   const [submitted, setSubmitted] = useState(false);
   const [submittedTime, setSubmittedTime] = useState(null);
   const [error, setError] = useState('');
+  const [earnedPoints, setEarnedPoints] = useState(null);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [questionNumber, setQuestionNumber] = useState(0);
@@ -42,7 +43,8 @@ const FunRoundPage = () => {
         setSettingsState(s);
 
         if (!s.isRoundActive || s.currentRound < 5) {
-          if (!submitted) navigate('/profile');
+          // If the round is over, head back to dashboard
+          navigate('/profile');
           return;
         }
 
@@ -136,10 +138,11 @@ const FunRoundPage = () => {
     setError('');
     try {
       const elapsed = Date.now() - new Date(settings.roundStartedAt).getTime();
-      await submissionsAPI.submit(settings.currentRound, answers, Math.round(elapsed / 1000));
+      const res = await submissionsAPI.submit(settings.currentRound, answers, Math.round(elapsed / 1000));
       setSubmitting(false);
       setSubmitted(true);
       setSubmittedTime(elapsed);
+      setEarnedPoints(res.data.roleScore);
 
       const end = Date.now() + 1500;
       const burst = () => {
@@ -215,10 +218,16 @@ const FunRoundPage = () => {
           value={answers[activeQuestion.questionId] || ''}
           onChange={(e) => { setAnswer(activeQuestion.questionId, e.target.value); setError(''); }}
           onKeyDown={(e) => { if (e.key === 'Enter') handleSubmit(); }}
-          className="w-full bg-[#111827] border-2 border-[#1F2937] rounded-[16px] py-[18px] px-[24px] text-[20px] font-bold text-center text-[#F9FAFB] focus:border-yellow-500 outline-none transition-all placeholder-[#4B5563] focus:shadow-[0_0_30px_rgba(234,179,8,0.1)]"
+          className={`w-full bg-[#111827] border-2 rounded-[16px] py-[18px] px-[24px] text-[20px] font-bold text-center text-[#F9FAFB] outline-none transition-all placeholder-[#4B5563] focus:shadow-[0_0_30px_rgba(234,179,8,0.1)] ${error ? 'border-red-500 animate-shake' : 'border-[#1F2937] focus:border-yellow-500'}`}
           placeholder="Type your answer..."
           autoFocus
         />
+        {error && (
+          <div className="mt-[12px] flex items-center justify-center gap-[8px] text-red-400 animate-in fade-in slide-in-from-top-2 duration-300">
+            <FiAlertCircle size={14} />
+            <span className="text-[13px] font-bold uppercase tracking-wide">{error}</span>
+          </div>
+        )}
         <p className="text-[10px] text-[#6B7280] text-center mt-[8px] uppercase tracking-widest">
           Case & spacing don't matter
         </p>
@@ -278,22 +287,37 @@ const FunRoundPage = () => {
             </div>
           </div>
         ) : submitted ? (
-          <div className="text-center max-w-[500px]">
-            <div className="w-[80px] h-[80px] rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto mb-[24px]">
-              <FiCheckCircle className="text-emerald-500" size={40} />
+          <div className="text-center max-w-[600px] animate-in zoom-in duration-500">
+            <div className="w-[100px] h-[100px] rounded-full bg-emerald-500/10 border-2 border-emerald-500/30 flex items-center justify-center mx-auto mb-[32px] shadow-glow-emerald">
+              <FiCheckCircle className="text-emerald-500" size={50} />
             </div>
-            <h2 className="text-[28px] font-bold text-emerald-400 mb-[12px]">Answer Submitted!</h2>
-            {submittedTime && (
-              <div className="inline-flex items-center gap-[8px] px-[20px] py-[10px] bg-[#111827] border border-[#1F2937] rounded-[12px] mb-[16px]">
-                <FiClock size={16} className="text-yellow-500" />
-                <span className="text-[18px] font-bold tabular-nums text-[#F9FAFB]">{formatElapsed(submittedTime)}</span>
+            
+            <h2 className="text-[14px] font-black text-emerald-500 uppercase tracking-[0.4em] mb-[8px]">Tactical Resolution Success</h2>
+            <h1 className="text-[48px] font-black text-white tracking-tighter mb-[32px] leading-none">EXCELLENT!</h1>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-[16px] mb-[40px]">
+              <div className="bg-[#111827] border border-white/5 rounded-[20px] p-[24px] text-center">
+                <div className="text-[10px] text-[#6B7280] font-black uppercase tracking-widest mb-[8px]">Points Earned</div>
+                <div className="text-[32px] font-black text-yellow-500 tabular-nums">
+                  +{earnedPoints || 0} <span className="text-[14px] opacity-40 uppercase ml-1">PTS</span>
+                </div>
               </div>
-            )}
-            <p className="text-[14px] text-[#9CA3AF]">Waiting for the next question...</p>
-            <div className="flex items-center justify-center gap-[8px] mt-[20px]">
-              <div className="w-[6px] h-[6px] bg-yellow-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-              <div className="w-[6px] h-[6px] bg-yellow-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-              <div className="w-[6px] h-[6px] bg-yellow-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+              
+              <div className="bg-[#111827] border border-white/5 rounded-[20px] p-[24px] text-center">
+                <div className="text-[10px] text-[#6B7280] font-black uppercase tracking-widest mb-[8px]">Resolution Speed</div>
+                <div className="text-[32px] font-black text-[#F9FAFB] tabular-nums">
+                  {formatElapsed(submittedTime)}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col items-center gap-[16px]">
+              <p className="text-[14px] text-[#9CA3AF] font-medium italic">Standby for next phase initialization...</p>
+              <div className="flex items-center gap-[8px]">
+                <div className="w-[6px] h-[6px] bg-yellow-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                <div className="w-[6px] h-[6px] bg-yellow-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                <div className="w-[6px] h-[6px] bg-yellow-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+              </div>
             </div>
           </div>
         ) : (

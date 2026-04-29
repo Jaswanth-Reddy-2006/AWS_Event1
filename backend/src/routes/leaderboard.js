@@ -26,9 +26,28 @@ router.get('/', async (req, res) => {
       .sort({ 'finalScore.cumulativeProfit': -1, createdAt: 1 })
       .limit(100);
 
+    // Flush stale cache on restart to ensure new logic applies
+    if (isRedisReady()) {
+        redisClient.del('global:leaderboard').catch(e => console.error('Cache flush error:', e));
+    }
+
+    const Question = require('../models/Question');
+    const questions = await Question.find({}, 'year role scoringRubric');
+    const maxScores = {}; // { year_role: maxScore }
+    
+    questions.forEach(q => {
+        const key = `${q.year}_${q.role}`;
+        // Standard rounds: 100 pts. Fun rounds (Year >= 5): 1000 pts potential.
+        let score = (q.scoringRubric?.full && q.scoringRubric.full !== 10) ? q.scoringRubric.full : 100;
+        if (parseInt(q.year) >= 5) score = 1000; 
+        
+        maxScores[key] = (maxScores[key] || 0) + score;
+    });
+
     const unsortedLeaderboard = teams.map((team, idx) => {
-      let scoreSum = 0;
-      let rolesCount = 0;
+      let totalScoreSum = 0;
+      let totalEfficiencySum = 0;
+      let roundsWithSubmissions = 0;
       let totalTimeSpent = 0;
       let anyTimeSpent = false;
       const roundDetails = {};
@@ -37,19 +56,47 @@ router.get('/', async (req, res) => {
       for (let i = 0; i <= 10; i++) {
           const rd = team.gameState?.[`year${i}`];
           if (rd && rd.answers) {
-              const ctoDone = Object.keys(rd.answers.cto || {}).length > 0;
-              const cfoDone = Object.keys(rd.answers.cfo || {}).length > 0;
-              const pmDone = Object.keys(rd.answers.pm || {}).length > 0;
-              
+              const roles = ['cto', 'cfo', 'pm'];
+              let roundEfficiencySum = 0;
+              let rolesInRound = 0;
               let roundScore = 0;
-              if (ctoDone) { rolesCount++; roundScore += (rd.scores?.cto || 0); }
-              if (cfoDone) { rolesCount++; roundScore += (rd.scores?.cfo || 0); }
-              if (pmDone)  { rolesCount++; roundScore += (rd.scores?.pm || 0); }
-              
-              scoreSum += roundScore;
 
+              roles.forEach(role => {
+                  const hasSubmitted = Object.keys(rd.answers[role] || {}).length > 0;
+                  if (hasSubmitted) {
+                      const score = rd.scores?.[role] || 0;
+                      const max = maxScores[`${i}_${role}`] || 100;
+                      roundEfficiencySum += (score / max) * 100;
+                      rolesInRound++;
+                      roundScore += score;
+                  }
+              });
+
+              // Special case for Fun Rounds or combined scores if 'fun' role exists
+              if (rd.answers.fun && Object.keys(rd.answers.fun).length > 0) {
+                  const score = rd.scores?.fun || 0;
+                  const max = maxScores[`${i}_fun`] || 100;
+                  roundEfficiencySum += (score / max) * 100;
+                  rolesInRound++;
+                  roundScore += score;
+              }
+
+              if (rolesInRound > 0) {
+                  const roundEfficiency = Math.min(100, Math.round(roundEfficiencySum / rolesInRound));
+                  roundDetails[`year${i}Points`] = roundScore;
+                  roundDetails[`year${i}Efficiency`] = roundEfficiency;
+                  
+                  totalScoreSum += roundScore;
+                  totalEfficiencySum += roundEfficiency;
+                  roundsWithSubmissions++;
+              } else {
+                  roundDetails[`year${i}Points`] = 0;
+                  roundDetails[`year${i}Efficiency`] = 0;
+              }
+
+              // Time calculation
               let roundTime = 0;
-              if (ctoDone && cfoDone && pmDone) {
+              if (rolesInRound === 3) {
                 const avgTimeSpent = (
                   (rd.timeSpent?.cto || 0) +
                   (rd.timeSpent?.cfo || 0) +
@@ -59,10 +106,8 @@ router.get('/', async (req, res) => {
                 totalTimeSpent += roundTime;
                 anyTimeSpent = true;
               }
-
-              roundDetails[`year${i}Points`] = roundScore;
               roundDetails[`year${i}Time`] = roundTime;
-              roundDetails[`year${i}Efficiency`] = roundScore > 0 ? Math.round((roundScore / 30) * 100) : 0;
+
           } else {
               roundDetails[`year${i}Points`] = 0;
               roundDetails[`year${i}Time`] = 0;
@@ -70,23 +115,25 @@ router.get('/', async (req, res) => {
           }
       }
                                
-      const rawEfficiency = rolesCount > 0 ? Math.round((scoreSum / (Math.ceil(rolesCount/3) * 30)) * 100) : 0;
-      const avgEfficiency = Math.min(100, rawEfficiency);
+      const avgEfficiency = roundsWithSubmissions > 0 ? Math.round(totalEfficiencySum / roundsWithSubmissions) : 0;
 
       return {
           teamId: team.teamId,
           teamName: team.teamName,
           ...roundDetails,
           status: team.eventStatus,
-          scoreSum: scoreSum, 
-          avgEfficiency: avgEfficiency,
+          scoreSum: totalScoreSum, 
+          avgEfficiency: Math.min(100, avgEfficiency),
           totalTimeSpent: anyTimeSpent ? totalTimeSpent : undefined,
           createdAt: team.createdAt
       };
     });
 
-    // Sort by scoreSum desc, then totalTimeSpent asc, then createdAt asc
+    // Sort by avgEfficiency desc, then scoreSum desc, then totalTimeSpent asc, then createdAt asc
     unsortedLeaderboard.sort((a, b) => {
+        if (b.avgEfficiency !== a.avgEfficiency) {
+            return b.avgEfficiency - a.avgEfficiency;
+        }
         if (b.scoreSum !== a.scoreSum) {
             return b.scoreSum - a.scoreSum;
         }

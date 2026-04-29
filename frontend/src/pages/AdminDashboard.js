@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import Leaderboard from '../components/Leaderboard';
 import FunLeaderboard from '../components/FunLeaderboard';
 import LightRays from '../components/LightRays';
+import AppleGlow from '../components/AppleGlow';
 import Button from '../components/Button';
 import Card from '../components/Card';
 import { adminAPI } from '../utils/api';
@@ -2114,7 +2115,10 @@ const AdminDashboard = () => {
 
         {/* FULL SCREEN LEADERBOARD OVERLAY */}
         {isFullScreenLeaderboard && (
-            <div className="fixed inset-0 z-[9999] bg-[#030712] p-24 md:p-48 flex flex-col animate-in fade-in duration-500 overflow-hidden">
+            <div className="fixed inset-0 z-[9999] bg-[#030712] flex flex-col animate-in fade-in duration-500 overflow-hidden">
+                {/* Apple-style animated gradient border */}
+                <AppleGlow borderWidth={3} glowSize={60} speed={3} />
+
                 {/* LightRays Background */}
                 <div className="absolute inset-0 z-0">
                     <LightRays
@@ -2131,7 +2135,7 @@ const AdminDashboard = () => {
                     />
                 </div>
 
-                <div className="absolute top-24 right-24 z-20">
+                <div className="absolute top-[24px] right-[24px] z-20">
                     <button
                         onClick={() => { setIsFullScreenLeaderboard(false); setFilteredRound(null); }}
                         className="w-48 h-48 bg-white/5 hover:bg-red-500/20 text-white/50 hover:text-red-500 rounded-full flex items-center justify-center transition-all border border-white/10 hover:border-red-500/30 shadow-xl backdrop-blur-sm"
@@ -2140,7 +2144,7 @@ const AdminDashboard = () => {
                     </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto hidden-scrollbar relative z-10">
+                <div className="flex-1 overflow-y-auto hidden-scrollbar relative z-10 p-[24px] md:p-[48px]">
                     {leaderboardMode === 'standard' ? (
                         <Leaderboard isFullScreen={true} filterYear={filteredRound} />
                     ) : (

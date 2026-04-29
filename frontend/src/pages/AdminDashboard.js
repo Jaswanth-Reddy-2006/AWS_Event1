@@ -122,7 +122,7 @@ const AdminDashboard = () => {
       interval = setInterval(fetchActiveQuestionStats, 2000);
     }
     return () => clearInterval(interval);
-  }, [activeTab, settings?.isRoundActive, settings?.activeFunQuestionId]);
+  }, [activeTab, settings?.isRoundActive, settings?.activeFunQuestionId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchActiveQuestionStats = async () => {
     try {

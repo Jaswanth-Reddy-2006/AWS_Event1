@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Header from '../components/Header';
 import { authAPI } from '../utils/api';
 import { useGameStore } from '../utils/store';
 import { FiAlertCircle, FiLoader, FiEye, FiEyeOff, FiChevronDown } from 'react-icons/fi';

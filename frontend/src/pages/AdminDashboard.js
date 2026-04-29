@@ -38,7 +38,6 @@ import {
     FiCheckSquare,
     FiRadio,
     FiSend,
-    FiMessageSquare
 } from 'react-icons/fi';
 
 const AdminDashboard = () => {
@@ -52,7 +51,7 @@ const AdminDashboard = () => {
   const [isFullScreenLeaderboard, setIsFullScreenLeaderboard] = useState(false);
   const [filteredRound, setFilteredRound] = useState(null);
 
-  const togglePasswordVisibility = (key) => {
+  const togglePasswordVisibility = (key) => { // eslint-disable-line no-unused-vars
     setVisiblePasswords(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
@@ -120,7 +119,7 @@ const AdminDashboard = () => {
   const [activeRoleFilter, setActiveRoleFilter] = useState('cto'); 
   const [selectedTeam, setSelectedTeam] = useState(null);
   const [roundTimeLeft, setRoundTimeLeft] = useState(null); // seconds remaining
-  const [showInitBanner, setShowInitBanner] = useState(false);
+  const [showInitBanner, setShowInitBanner] = useState(false); // eslint-disable-line no-unused-vars
   const timerRef = useRef(null);
   const [activeQuestionStats, setActiveQuestionStats] = useState({ answeredCount: 0, totalTeams: 0 });
   const [broadcastMsg, setBroadcastMsg] = useState('');
@@ -1233,7 +1232,7 @@ const AdminDashboard = () => {
                                                                             {Object.entries(qScores).map(([qId, pts], qi) => {
                                                                                 const isPos = pts > 0;
                                                                                 const isNeg = pts < 0;
-                                                                                const isZero = pts === 0;
+                                                                                const isZero = pts === 0; // eslint-disable-line no-unused-vars
                                                                                 return (
                                                                                     <span key={qId} title={`Q${qi+1}: ${qId}`} className={`text-[11px] font-mono px-[8px] py-[3px] rounded border ${
                                                                                         isPos ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' :

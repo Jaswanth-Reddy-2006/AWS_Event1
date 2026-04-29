@@ -146,6 +146,7 @@ const QuestionPage = () => {
       intervalId = setInterval(validateAndLoad, 5000);
     }
     return () => { if (intervalId) clearInterval(intervalId); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [year, role, teamId, navigate, questions.length, setCurrentQuestions, submitted, setNextRoundSettings, setTabSwitchWarnings]);
 
   useEffect(() => {

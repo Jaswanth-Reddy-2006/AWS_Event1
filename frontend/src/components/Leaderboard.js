@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { leaderboardAPI } from '../utils/api';
-import { FiTrendingUp, FiActivity, FiUsers, FiAward, FiZap, FiRefreshCw, FiClock, FiTarget, FiChevronUp, FiChevronDown } from 'react-icons/fi';
+import { FiTrendingUp, FiActivity, FiUsers, FiAward, FiZap, FiRefreshCw, FiChevronUp, FiChevronDown } from 'react-icons/fi';
 
 const PODIUM = [
   { idx: 1, label: '2ND', bg: 'from-slate-400/15 to-slate-600/5', text: 'text-slate-300', border: 'border-slate-400/25', ring: 'ring-slate-400/40', height: 'h-[120px]', avatar: 'w-[56px] h-[56px] text-[18px]', score: 'text-[22px]', order: 'order-1', mt: 'mt-[32px]' },

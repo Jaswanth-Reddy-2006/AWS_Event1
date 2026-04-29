@@ -148,7 +148,8 @@ router.get('/teams', verifyToken, verifyAdmin, async (req, res) => {
         members: team.members ? team.members.map(m => ({
           name: m.name,
           role: m.role,
-          password: m.plainPassword
+          password: m.plainPassword || null,
+          hasPassword: !!m.password
         })) : [],
         status: team.eventStatus,
         currentYear: team.currentYear,

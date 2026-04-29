@@ -2078,21 +2078,24 @@ const AdminDashboard = () => {
                                                                         <button onClick={() => setVisiblePasswords(prev => ({ ...prev, [passKey]: !prev[passKey] }))} className="p-[3px] text-[#4B5563] hover:text-[#7C3AED] transition-all">{passVisible ? <FiEyeOff size={12} /> : <FiEye size={12} />}</button>
                                                                     </>
                                                                 ) : (
-                                                                    <button
-                                                                        onClick={async () => {
-                                                                            const np = prompt(`Set new password for ${member.name} (${member.role.toUpperCase()}):`);
-                                                                            if (!np || np.length < 4) { if (np !== null) alert('Password must be at least 4 characters'); return; }
-                                                                            try {
-                                                                                await adminAPI.resetPassword(team.teamId, member.role, np);
-                                                                                setMsg({ type: 'success', text: `Password set for ${member.name}` });
-                                                                                const res = await adminAPI.getTeams();
-                                                                                setTeams(res.data.teams || []);
-                                                                            } catch (e) { setMsg({ type: 'error', text: 'Failed to set password' }); }
-                                                                        }}
-                                                                        className="flex items-center gap-[4px] px-[8px] py-[3px] bg-amber-500/10 text-amber-400 text-[10px] font-bold rounded border border-amber-500/20 hover:bg-amber-500/20 transition-all"
-                                                                    >
-                                                                        <FiRefreshCw size={10} /> Set Password
-                                                                    </button>
+                                                                    <div className="flex items-center gap-[6px]">
+                                                                        {member.hasPassword && <span className="text-[11px] text-[#6B7280] italic">Encrypted</span>}
+                                                                        <button
+                                                                            onClick={async () => {
+                                                                                const np = prompt(`${member.password ? 'Reset' : 'Set'} password for ${member.name} (${member.role.toUpperCase()}):`);
+                                                                                if (!np || np.length < 4) { if (np !== null) alert('Password must be at least 4 characters'); return; }
+                                                                                try {
+                                                                                    await adminAPI.resetPassword(team.teamId, member.role, np);
+                                                                                    setMsg({ type: 'success', text: `Password set for ${member.name}` });
+                                                                                    const res = await adminAPI.getTeams();
+                                                                                    setTeams(res.data.teams || []);
+                                                                                } catch (e) { setMsg({ type: 'error', text: 'Failed to set password' }); }
+                                                                            }}
+                                                                            className="flex items-center gap-[4px] px-[8px] py-[3px] bg-amber-500/10 text-amber-400 text-[10px] font-bold rounded border border-amber-500/20 hover:bg-amber-500/20 transition-all"
+                                                                        >
+                                                                            <FiRefreshCw size={10} /> {member.hasPassword ? 'Reset' : 'Set'}
+                                                                        </button>
+                                                                    </div>
                                                                 )}
                                                             </div>
                                                         </div>

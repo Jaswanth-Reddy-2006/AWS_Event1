@@ -69,7 +69,8 @@ export const adminAPI = {
   getAnalytics: () => apiClient.get('/admin/analytics'),
   getRoundStats: () => apiClient.get('/admin/round-stats'),
   getRoundSubmissions: (round) => apiClient.get(`/admin/round-submissions/${round}`),
-  recoverSession: (teamId, role, year) => apiClient.post('/admin/session-recovery', { teamId, role, year })
+  recoverSession: (teamId, role, year) => apiClient.post('/admin/session-recovery', { teamId, role, year }),
+  resetPassword: (teamId, role, newPassword) => apiClient.put(`/admin/teams/${teamId}/reset-password`, { role, newPassword })
 };
 
 

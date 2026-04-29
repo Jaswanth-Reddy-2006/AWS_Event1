@@ -284,6 +284,32 @@ router.delete('/teams/:teamId', verifyToken, verifyAdmin, async (req, res) => {
 });
 
 /**
+ * PUT /api/admin/teams/:teamId/reset-password
+ * Reset a team member's password (admin only)
+ */
+router.put('/teams/:teamId/reset-password', verifyToken, verifyAdmin, async (req, res) => {
+  try {
+    const { teamId } = req.params;
+    const { role, newPassword } = req.body;
+    if (!role || !newPassword) return res.status(400).json({ error: 'role and newPassword required' });
+
+    const team = await Team.findOne({ teamId });
+    if (!team) return res.status(404).json({ error: 'Team not found' });
+
+    const member = team.members.find(m => m.role === role.toLowerCase());
+    if (!member) return res.status(404).json({ error: `No ${role} member found` });
+
+    member.password = await bcrypt.hash(newPassword, 10);
+    member.plainPassword = newPassword;
+    await team.save();
+
+    res.status(200).json({ success: true, message: `Password reset for ${role} in team ${teamId}` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
  * Question Management (CRUD)
  */
 router.get('/questions', verifyToken, verifyAdmin, async (req, res) => {

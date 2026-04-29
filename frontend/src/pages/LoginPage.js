@@ -133,7 +133,6 @@ const LoginPage = () => {
                       <option value="cto">CTO</option>
                       <option value="cfo">CFO</option>
                       <option value="pm">PM</option>
-                      <option value="admin">ADMIN</option>
                     </select>
                     <FiChevronDown className="absolute right-[12px] top-1/2 -translate-y-1/2 text-[#4A5568] pointer-events-none" size={14} />
                   </div>

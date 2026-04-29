@@ -15,7 +15,7 @@ const { verifyToken, verifyAdmin } = require('../middleware/auth');
  */
 router.post('/register', verifyToken, verifyAdmin, async (req, res) => {
   try {
-    const { teamName, teamLead, members, college, department } = req.body;
+    const { teamName, teamLead, members, college, department, domain, population } = req.body;
 
     // Validate input
     if (!teamName || !members || members.length !== 3) {
@@ -70,6 +70,8 @@ router.post('/register', verifyToken, verifyAdmin, async (req, res) => {
       members: newMembers,
       college,
       department,
+      domain,
+      population,
       eventStatus: 'registered',
       createdAt: new Date()
     });

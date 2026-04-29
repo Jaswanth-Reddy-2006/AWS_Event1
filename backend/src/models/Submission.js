@@ -15,12 +15,12 @@ const submissionSchema = new mongoose.Schema({
   year: {
     type: Number,
     required: true,
-    enum: [0, 1, 2, 3, 4]
+    enum: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
   },
   role: {
     type: String,
     required: true,
-    enum: ['cto', 'cfo', 'pm']
+    enum: ['cto', 'cfo', 'pm', 'fun']
   },
   answers: {
     type: Map,

@@ -65,6 +65,14 @@ const teamSchema = new mongoose.Schema({
   ],
   college: String,
   department: String,
+  domain: {
+    type: String,
+    trim: true
+  },
+  population: {
+    type: Number,
+    default: 0
+  },
   createdAt: {
     type: Date,
     default: Date.now
@@ -103,6 +111,9 @@ const teamSchema = new mongoose.Schema({
     year4: yearStateSchema,
     year5: yearStateSchema,
     year6: yearStateSchema,
+    year7: yearStateSchema,
+    year8: yearStateSchema,
+    year9: yearStateSchema,
     violations: [{
       role: String,
       year: Number,

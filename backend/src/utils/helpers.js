@@ -96,6 +96,10 @@ function scoreAnswer(question, userAnswer) {
       }
       return incorrectScore;
 
+    case 'text':
+      if (!userAnswer || typeof userAnswer !== 'string') return incorrectScore;
+      return userAnswer.trim().toLowerCase() === String(question.correctAnswer).trim().toLowerCase() ? fullScore : incorrectScore;
+
     default:
       return userAnswer === question.correctAnswer ? fullScore : incorrectScore;
   }

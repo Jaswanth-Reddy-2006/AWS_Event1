@@ -64,6 +64,7 @@ export const adminAPI = {
   registerTeam: (teamData) => apiClient.post('/auth/register', teamData),
   broadcast: (message, type) => apiClient.post('/admin/broadcast', { message, type }),
   getAnalytics: () => apiClient.get('/admin/analytics'),
+  getRoundStats: () => apiClient.get('/admin/round-stats'),
   recoverSession: (teamId, role, year) => apiClient.post('/admin/session-recovery', { teamId, role, year })
 };
 

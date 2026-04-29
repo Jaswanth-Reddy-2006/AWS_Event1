@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import axios from 'axios';
 import { useNavigate, useParams } from 'react-router-dom';
 import Leaderboard from '../components/Leaderboard';
 import FunLeaderboard from '../components/FunLeaderboard';
@@ -6,12 +7,35 @@ import Button from '../components/Button';
 import Card from '../components/Card';
 import { adminAPI } from '../utils/api';
 import { useGameStore } from '../utils/store';
-import { 
-    FiUsers, FiActivity, FiShield, FiPlus, FiTrash2, FiPlay, FiStopCircle, 
-    FiX, FiCheckCircle, FiAlertCircle, 
-    FiEye, FiLock, FiClock,
-    FiTrendingUp, FiUser, FiHome, FiTarget, FiCloud, FiZap, FiCircle, FiAward, FiStar,
-    FiChevronDown, FiChevronUp, FiPlusSquare
+import {
+    FiUsers,
+    FiActivity,
+    FiShield,
+    FiPlus,
+    FiTrash2,
+    FiPlay,
+    FiStopCircle,
+    FiX,
+    FiCheckCircle,
+    FiAlertCircle,
+    FiEye,
+    FiEyeOff,
+    FiLock,
+    FiClock,
+    FiTrendingUp,
+    FiUser,
+    FiHome,
+    FiTarget,
+    FiCloud,
+    FiZap,
+    FiCircle,
+    FiAward,
+    FiStar,
+    FiChevronDown,
+    FiChevronUp,
+    FiPlusSquare,
+    FiCopy,
+    FiCheckSquare
 } from 'react-icons/fi';
 
 const AdminDashboard = () => {
@@ -20,39 +44,72 @@ const AdminDashboard = () => {
   const activeTab = tab || 'dashboard';
   const { setLogout } = useGameStore();
   const [leaderboardMode, setLeaderboardMode] = useState('standard');
-
   const [isFunRoundsOpen, setIsFunRoundsOpen] = useState(false);
   const [visiblePasswords, setVisiblePasswords] = useState({});
+  const [isFullScreenLeaderboard, setIsFullScreenLeaderboard] = useState(false);
+  const [filteredRound, setFilteredRound] = useState(null);
 
   const togglePasswordVisibility = (key) => {
     setVisiblePasswords(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
+  const copyToClipboard = (text, label = 'Operational Key') => {
+    navigator.clipboard.writeText(text);
+    setMsg({ type: 'success', text: `${label} copied to terminal clipboard.` });
+    setTimeout(() => setMsg({ type: '', text: '' }), 3000);
+  };
+
+
   const menuItems = [
-    { id: 'dashboard', label: 'Monitor', icon: <FiHome /> },
+    { id: 'dashboard', label: 'Participants Hub', icon: <FiHome /> },
     { id: 'leaderboard', label: 'Ranking', icon: <FiAward /> },
     { id: 'r1', label: 'Round 1', icon: <FiTarget />, year: 0 },
     { id: 'r2', label: 'Round 2', icon: <FiTarget />, year: 1 },
     { id: 'r3', label: 'Round 3', icon: <FiTarget />, year: 2 },
     { id: 'r4', label: 'Round 4', icon: <FiTarget />, year: 3 },
     { id: 'r5', label: 'Round 5', icon: <FiTarget />, year: 4 },
+    { id: 'r6', label: 'Fun Round 1', icon: <FiZap />, year: 5, isFun: true },
+    { id: 'r7', label: 'Fun Round 2', icon: <FiZap />, year: 6, isFun: true },
+    { id: 'r8', label: 'Fun Round 3', icon: <FiZap />, year: 7, isFun: true },
+    { id: 'r9', label: 'Fun Round 4', icon: <FiZap />, year: 8, isFun: true },
+    { id: 'r10', label: 'Fun Round 5', icon: <FiZap />, year: 9, isFun: true },
+    { id: 'r11', label: 'Fun Round 6', icon: <FiZap />, year: 10, isFun: true },
   ];
 
-  const [funRounds, setFunRounds] = useState([
-    { id: 'funderon1', label: 'Funderon 1', year: 5 },
-    { id: 'funderon2', label: 'Funderon 2', year: 6 },
-  ]);
+  const [funRounds, setFunRounds] = useState([]);
 
   const addFunRound = () => {
     const nextNum = funRounds.length + 1;
     const nextYear = 4 + nextNum;
-    setFunRounds([...funRounds, { id: `funderon${nextNum}`, label: `Funderon ${nextNum}`, year: nextYear }]);
+    if (nextYear > 9) {
+      setMsg({ type: 'error', text: 'Maximum fun rounds reached (Year 9).' });
+      return;
+    }
+    setFunRounds(prev => [...prev, { id: `funderon${nextNum}`, label: `Fun Round ${nextNum}`, year: nextYear }]);
     setIsFunRoundsOpen(true);
   };
 
   const [settings, setSettings] = useState(null);
   const [teams, setTeams] = useState([]);
   const [questions, setQuestions] = useState([]);
+  const [roundStats, setRoundStats] = useState({
+    totalTeams: 0,
+    totalParticipants: 0,
+    onlinePeople: 0,
+    ctoCompleted: 0,
+    cfoCompleted: 0,
+    pmCompleted: 0,
+    teamsFullyCompleted: 0
+  });
+
+  const fetchRoundStats = async () => {
+    try {
+      const res = await adminAPI.getRoundStats();
+      setRoundStats(res.data);
+    } catch (err) {
+      console.error('Failed to fetch round stats:', err);
+    }
+  };
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState({ type: '', text: '' });
   const [isAddingQuestion, setIsAddingQuestion] = useState(false);
@@ -62,7 +119,30 @@ const AdminDashboard = () => {
   const [roundTimeLeft, setRoundTimeLeft] = useState(null); // seconds remaining
   const [showInitBanner, setShowInitBanner] = useState(false);
   const timerRef = useRef(null);
+  const [activeQuestionStats, setActiveQuestionStats] = useState({ answeredCount: 0, totalTeams: 0 });
 
+  useEffect(() => {
+    let interval;
+    if (activeTab.startsWith('fr') && settings?.isRoundActive) {
+      fetchActiveQuestionStats();
+      interval = setInterval(fetchActiveQuestionStats, 3000);
+    }
+    return () => clearInterval(interval);
+  }, [activeTab, settings?.isRoundActive, settings?.activeFunQuestionId]);
+
+  const fetchActiveQuestionStats = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/admin/active-question-stats`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setActiveQuestionStats(res.data);
+    } catch (err) {
+      console.error('Stats fetch error:', err);
+    }
+  };
+
+  const [showRegistryPasswords, setShowRegistryPasswords] = useState(true);
   // Admin creation state
   const [newAdmin, setNewAdmin] = useState({
     teamId: '',
@@ -93,6 +173,8 @@ const AdminDashboard = () => {
   // Team Registration State (Admin Created)
   const [newTeam, setNewTeam] = useState({
     teamName: '',
+    domain: '',
+    population: 100,
     members: [
       { name: '', role: 'cto', password: '' },
       { name: '', role: 'cfo', password: '' },
@@ -112,6 +194,7 @@ const AdminDashboard = () => {
         setSettings(sets.data);
         setTeams(tms.data.teams || []);
         setQuestions(qns.data || []);
+        fetchRoundStats();
         setLoading(false);
       } catch (err) {
         console.error('Data Load Error:', err);
@@ -119,7 +202,7 @@ const AdminDashboard = () => {
       }
     };
     loadAll();
-    const interval = setInterval(loadAll, 15000);
+    const interval = setInterval(loadAll, 3000); // Increased polling for telemetry
     return () => clearInterval(interval);
   }, []);
 
@@ -277,7 +360,9 @@ const AdminDashboard = () => {
 
   const handleCreateQuestion = async (e) => {
     e.preventDefault();
-    const year = activeTab === 'r1' ? 0 : activeTab === 'r2' ? 1 : activeTab === 'r3' ? 2 : activeTab === 'r4' ? 3 : 4;
+    const tabItem = menuItems.find(m => m.id === activeTab);
+    const year = tabItem?.year || 0;
+    
     try {
         let finalCorrectAnswer = newQ.correctAnswer;
         if (newQ.type === 'multi-select') {
@@ -294,7 +379,8 @@ const AdminDashboard = () => {
             correctAnswer: finalCorrectAnswer,
             scoringRubric: newQ.scoringRubric,
             year: year,
-            scenario: 'AWS Operational Event'
+            scenario: 'AWS Operational Event',
+            assetUrl: newQ.assetUrl // Added for Fun Rounds
         };
 
         if (newQ.type === 'range') {
@@ -327,12 +413,34 @@ const AdminDashboard = () => {
             correctAnswer: 'A',
             correctAnswers: [],
             range: { min: 1, max: 10 },
-            scoringRubric: { full: 10, partial: 5, incorrect: -5 }
+            scoringRubric: { full: 10, partial: 5, incorrect: -5 },
+            assetUrl: ''
         });
         setIsAddingQuestion(false);
         setEditingQId(null);
     } catch (err) {
         setMsg({ type: 'error', text: `ERROR: ${err.response?.data?.error || 'Validation failure'}` });
+    }
+  };
+
+  const handleActivateFunQuestion = async (qId) => {
+    // Allow activating if we are in a Fun Round (Year 5-9) or if competition hasn't started
+    const isCompetitionStarted = settings && settings.currentRound > 0;
+    const currentTabItem = menuItems.find(m => m.id === activeTab);
+    const isFunRound = currentTabItem?.isFun;
+
+    if (isCompetitionStarted && !isFunRound) {
+      setMsg({ type: 'error', text: 'Fun Questions can only be activated during Experimental Rounds or before Round 1.' });
+      return;
+    }
+
+    try {
+      await adminAPI.updateSettings({
+        activeFunQuestionId: qId
+      });
+      setMsg({ type: 'success', text: 'Fun question broadcasted to all units.' });
+    } catch (err) {
+      setMsg({ type: 'error', text: 'Broadcast uplink failed.' });
     }
   };
 
@@ -374,6 +482,7 @@ const AdminDashboard = () => {
       setSettings(sets.data);
       setTeams(tms.data.teams || []);
       setQuestions(qns.data || []);
+        fetchRoundStats();
       
       if (type === 'total') {
         setMsg({ type: 'success', text: 'Total reset successful. All units eliminated.' });
@@ -472,8 +581,20 @@ const AdminDashboard = () => {
             </div>
 
             <button
+                onClick={() => navigate('/admin/fun-leaderboard')}
+                className={`w-full flex items-center gap-[12px] px-[16px] py-[12px] rounded-[8px] transition-all duration-200 text-[14px] font-medium mt-[8px] ${
+                    activeTab === 'fun-leaderboard' 
+                    ? 'bg-yellow-500/10 text-yellow-500 shadow-glow-sm border border-yellow-500/20' 
+                    : 'text-[#9CA3AF] hover:text-[#F9FAFB] hover:bg-white/5'
+                }`}
+            >
+                <FiTrendingUp className="text-yellow-500" size={18} />
+                <span>Fun Rankings</span>
+            </button>
+
+            <button
                 onClick={() => navigate('/admin/register')}
-                className={`w-full flex items-center gap-[12px] px-[16px] py-[12px] rounded-[8px] transition-all duration-200 text-[14px] font-medium mt-auto ${
+                className={`w-full flex items-center gap-[12px] px-[16px] py-[12px] rounded-[8px] transition-all duration-200 text-[14px] font-medium mt-[8px] ${
                     activeTab === 'register' 
                     ? 'bg-[#10B981]/10 text-[#10B981] shadow-glow-sm border border-[#10B981]/20' 
                     : 'text-[#9CA3AF] hover:text-[#F9FAFB] hover:bg-white/5'
@@ -526,7 +647,7 @@ const AdminDashboard = () => {
                 }`}>
                     Round {(settings?.currentRound || 0) + 1} — Time Remaining: {Math.floor(roundTimeLeft / 60)}:{String(roundTimeLeft % 60).padStart(2, '0')}
                 </span>
-                {roundTimeLeft < 300 && <span className="text-[12px] font-bold text-red-300 animate-pulse ml-auto">⚠ ROUND CLOSING SOON</span>}
+                {roundTimeLeft < 300 && <span className="text-[12px] font-bold text-red-300 animate-pulse ml-auto">⚠️ ROUND CLOSING SOON</span>}
             </div>
         )}
 
@@ -557,12 +678,7 @@ const AdminDashboard = () => {
                             <p className="text-[14px] text-[#9CA3AF] mt-[4px]">Real-time operational telemetry across all units.</p>
                         </div>
                         <div className="flex items-center gap-[12px]">
-                            <button 
-                                onClick={() => handleReset('partial')}
-                                className="px-16 py-8 rounded-lg bg-red-500/10 text-red-500 border border-red-500/20 text-12 font-bold uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all shadow-lg shadow-red-900/10"
-                            >
-                                Restart Competition
-                            </button>
+                            
                             <div className="flex items-center gap-[12px] bg-[#111827] border border-[#1F2937] px-[16px] py-[8px] rounded-[8px]">
                                 <div className="w-[8px] h-[8px] bg-[#7C3AED] rounded-full animate-pulse shadow-[0_0_8px_rgba(124,58,237,0.5)]"></div>
                                 <span className="text-[12px] font-medium text-[#9CA3AF] uppercase tracking-widest">Live Uplink</span>
@@ -570,34 +686,137 @@ const AdminDashboard = () => {
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-[24px]">
-                        <Card className="flex flex-col justify-between relative overflow-hidden group border border-[#1F2937] hover:border-[#7C3AED]/30 transition-all">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-[20px] mb-[32px]">
+                        <Card className="bg-[#111827]/50 border border-[#1F2937] p-[20px]">
+                            <div className="flex items-center gap-[16px]">
+                                <div className="p-[12px] bg-purple-500/10 rounded-[12px] text-purple-500">
+                                    <FiUsers size={24} />
+                                </div>
+                                <div>
+                                    <span className="text-[12px] text-[#9CA3AF] uppercase tracking-widest block">Active Units</span>
+                                    <div className="text-[24px] font-bold text-white">
+                                        {roundStats.onlinePeople} <span className="text-[14px] text-[#9CA3AF] font-normal">/ {roundStats.totalParticipants}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </Card>
+                        <Card className="bg-[#111827]/50 border border-[#1F2937] p-[20px]">
+                            <div className="flex items-center gap-[16px]">
+                                <div className="p-[12px] bg-blue-500/10 rounded-[12px] text-blue-500">
+                                    <FiCheckCircle size={24} />
+                                </div>
+                                <div>
+                                    <span className="text-[12px] text-[#9CA3AF] uppercase tracking-widest block">Role Progress</span>
+                                    <div className="flex gap-[12px] mt-[4px]">
+                                        <div className="text-center">
+                                            <div className="text-[14px] font-bold text-white">{roundStats.ctoCompleted}</div>
+                                            <div className="text-[8px] text-[#9CA3AF] uppercase font-bold">CTO</div>
+                                        </div>
+                                        <div className="text-center">
+                                            <div className="text-[14px] font-bold text-white">{roundStats.cfoCompleted}</div>
+                                            <div className="text-[8px] text-[#9CA3AF] uppercase font-bold">CFO</div>
+                                        </div>
+                                        <div className="text-center">
+                                            <div className="text-[14px] font-bold text-white">{roundStats.pmCompleted}</div>
+                                            <div className="text-[8px] text-[#9CA3AF] uppercase font-bold">PM</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </Card>
+                        <Card className="bg-[#111827]/50 border border-[#1F2937] p-[20px]">
+                            <div className="flex items-center gap-[16px]">
+                                <div className="p-[12px] bg-emerald-500/10 rounded-[12px] text-emerald-500">
+                                    <FiCheckSquare size={24} />
+                                </div>
+                                <div>
+                                    <span className="text-[12px] text-[#9CA3AF] uppercase tracking-widest block">Teams Ready</span>
+                                    <div className="text-[24px] font-bold text-white">
+                                        {roundStats.teamsFullyCompleted} <span className="text-[14px] text-[#9CA3AF] font-normal">/ {roundStats.totalTeams}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </Card>
+                        <Card className="bg-[#111827]/50 border border-[#1F2937] p-[20px]">
+                            <div className="flex items-center gap-[16px]">
+                                <div className="p-[12px] bg-amber-500/10 rounded-[12px] text-amber-500">
+                                    <FiClock size={24} />
+                                </div>
+                                <div>
+                                    <span className="text-[12px] text-[#9CA3AF] uppercase tracking-widest block">Round Timer</span>
+                                    <div className="text-[24px] font-bold text-white">
+                                        {settings?.isRoundActive ? 'ACTIVE' : 'STANDBY'}
+                                    </div>
+                                </div>
+                            </div>
+                        </Card>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-[24px] mb-[48px]">
+                        <Card className="flex flex-col justify-between relative overflow-hidden group border border-[#1F2937] hover:border-[#7C3AED]/30 transition-all bg-[#0B0F14]">
                             <div className="relative z-10">
                                 <span className="text-[12px] font-medium text-[#7C3AED] uppercase tracking-widest block mb-[12px]">Cumulative points</span>
-                                <span className="text-[48px] font-semibold text-[#F9FAFB] tracking-tight">
+                                <span className="text-[40px] font-bold text-[#F9FAFB] tracking-tight">
                                     {teams.reduce((acc, team) => {
                                         let sum = 0;
-                                        for (let i = 0; i <= 4; i++) {
+                                        // Standard Rounds
+                                        for (let i = 0; i <= 9; i++) {
                                             const yd = team.gameState?.[`year${i}`];
                                             if (yd?.scores) {
-                                                sum += (yd.scores.cto || 0) + (yd.scores.cfo || 0) + (yd.scores.pm || 0);
+                                                sum += (yd.scores.cto || 0) + (yd.scores.cfo || 0) + (yd.scores.pm || 0) + (yd.scores.fun || 0);
                                             }
                                         }
                                         return acc + sum;
-                                    }, 0).toLocaleString()} <span className="text-[20px] text-[#9CA3AF]">pts</span>
+                                    }, 0).toLocaleString()} <span className="text-[16px] text-[#9CA3AF]">pts</span>
                                 </span>
                             </div>
-                            <FiTrendingUp className="absolute -right-[16px] -bottom-[16px] text-[#7C3AED]/5 group-hover:scale-110 transition-transform duration-700" size={160} />
+                            <FiAward className="absolute -right-[16px] -bottom-[16px] text-[#7C3AED]/5 group-hover:scale-110 transition-transform duration-700" size={120} />
                         </Card>
                         
-                        <Card className="flex flex-col justify-between relative overflow-hidden group border border-[#1F2937] hover:border-[#3b82f6]/30 transition-all">
+                        <Card className="flex flex-col justify-between relative overflow-hidden group border border-[#1F2937] hover:border-emerald-500/30 transition-all bg-[#0B0F14]">
                             <div className="relative z-10">
-                                <span className="text-[12px] font-medium text-[#3b82f6] uppercase tracking-widest block mb-[12px]">Total Teams</span>
-                                <div className="text-[48px] font-semibold text-[#F9FAFB] tracking-tight">
-                                    {teams.length}
+                                <span className="text-[12px] font-medium text-emerald-400 uppercase tracking-widest block mb-[12px]">Sync State</span>
+                                <div className="flex flex-col gap-4">
+                                    <div className="text-[32px] font-bold text-[#F9FAFB] tracking-tight">
+                                        {roundStats.teamsFullyCompleted} / {teams.length} <span className="text-[14px] text-[#9CA3AF] uppercase">Units Sync'd</span>
+                                    </div>
+                                    <div className="w-full bg-white/5 h-1.5 rounded-full overflow-hidden">
+                                        <div className="bg-emerald-500 h-full" style={{ width: `${(roundStats.teamsFullyCompleted / (teams.length || 1)) * 100}%` }} />
+                                    </div>
                                 </div>
                             </div>
-                            <FiUsers className="absolute -right-[16px] -bottom-[16px] text-[#3b82f6]/5 group-hover:scale-110 transition-transform duration-700" size={160} />
+                            <FiActivity className="absolute -right-[16px] -bottom-[16px] text-emerald-500/5 group-hover:scale-110 transition-transform duration-700" size={120} />
+                        </Card>
+
+                        <Card className="flex flex-col justify-between relative overflow-hidden group border border-[#1F2937] hover:border-sky-500/30 transition-all bg-[#0B0F14]">
+                            <div className="relative z-10">
+                                <span className="text-[12px] font-medium text-sky-400 uppercase tracking-widest block mb-[12px]">Role Completion</span>
+                                <div className="grid grid-cols-3 gap-8 mt-8">
+                                    <div className="text-center">
+                                        <div className="text-[18px] font-black text-white">{roundStats.ctoCompleted}</div>
+                                        <div className="text-[9px] text-[#9CA3AF] uppercase font-bold">CTO</div>
+                                    </div>
+                                    <div className="text-center border-x border-white/5">
+                                        <div className="text-[18px] font-black text-white">{roundStats.cfoCompleted}</div>
+                                        <div className="text-[9px] text-[#9CA3AF] uppercase font-bold">CFO</div>
+                                    </div>
+                                    <div className="text-center">
+                                        <div className="text-[18px] font-black text-white">{roundStats.pmCompleted}</div>
+                                        <div className="text-[9px] text-[#9CA3AF] uppercase font-bold">PM</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <FiZap className="absolute -right-[16px] -bottom-[16px] text-sky-500/5 group-hover:scale-110 transition-transform duration-700" size={120} />
+                        </Card>
+
+                        <Card className="flex flex-col justify-between relative overflow-hidden group border border-[#1F2937] hover:border-amber-500/30 transition-all bg-[#0B0F14]">
+                            <div className="relative z-10">
+                                <span className="text-[12px] font-medium text-amber-500 uppercase tracking-widest block mb-[12px]">Deployment Registry</span>
+                                <div className="text-[40px] font-bold text-[#F9FAFB] tracking-tight">
+                                    {teams.length} <span className="text-[16px] text-[#9CA3AF] uppercase">Clusters</span>
+                                </div>
+                            </div>
+                            <FiUsers className="absolute -right-[16px] -bottom-[16px] text-amber-500/5 group-hover:scale-110 transition-transform duration-700" size={120} />
                         </Card>
                     </div>
 
@@ -626,7 +845,7 @@ const AdminDashboard = () => {
                                         const currentRoundData = team.gameState?.[currentYearKey];
                                         
                                         const renderRoleCell = (memberObj, roleStr) => {
-                                            if (!memberObj) return <span className="text-[13px] text-[#4B5563]">—</span>;
+                                            if (!memberObj) return <span className="text-[13px] text-[#4B5563">—</span>;
                                             const roleAns = currentRoundData?.answers?.[roleStr];
                                             const completed = roleAns && Object.keys(roleAns).length > 0;
                                             
@@ -749,8 +968,8 @@ const AdminDashboard = () => {
 
                                     {/* Rounds Breakdown */}
                                     <div>
-                                        <h4 className="text-[16px] font-bold text-[#F9FAFB] border-b border-[#1F2937] pb-[12px] mb-[16px] uppercase tracking-wider">Round Submissions</h4>
-                                        {[0,1,2,3,4].map(y => {
+                                        <h4 className="text-[16px] font-bold text-[#F9FAFB] border-b border-[#1F2937] pb-[12px] mb-[16px] uppercase tracking-wider">Operational Lifecycle (10 Rounds)</h4>
+                                        {[0,1,2,3,4,5,6,7,8,9].map(y => {
                                             const yearKey = `year${y}`;
                                             const yData = selectedTeam.gameState?.[yearKey] || { 
                                                 answers: { cto: {}, cfo: {}, pm: {} }, 
@@ -831,7 +1050,7 @@ const AdminDashboard = () => {
                                                                                         isNeg ? 'bg-red-500/10 border-red-500/30 text-red-300' :
                                                                                         'bg-white/5 border-[#1F2937] text-[#4B5563]'
                                                                                     }`}>
-                                                                                        {isPos ? '✓' : isNeg ? '✗' : '—'} Q{qi+1}: {pts > 0 ? '+' : ''}{pts}pts
+                                                                                        {isPos ? '✓' : isNeg ? '✕' : '—'} Q{qi+1}: {pts > 0 ? '+' : ''}{pts}pts
                                                                                     </span>
                                                                                 );
                                                                             })}
@@ -877,6 +1096,18 @@ const AdminDashboard = () => {
                 </div>
             )}
 
+            {activeTab === 'fun-leaderboard' && (
+                <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
+                    <div className="flex items-center justify-between mb-[32px]">
+                        <div>
+                            <h2 className="text-[32px] font-semibold text-yellow-500 tracking-tight">Experimental Standings</h2>
+                            <p className="text-[14px] text-[#9CA3AF] mt-[4px]">Performance metrics for the current speed-based Fun Round.</p>
+                        </div>
+                    </div>
+                    <FunLeaderboard />
+                </div>
+            )}
+
             {activeTab === 'leaderboard' && (
                 <div className="animate-in fade-in duration-500">
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-24 mb-[48px]">
@@ -884,28 +1115,36 @@ const AdminDashboard = () => {
                             <h2 className="text-[32px] font-semibold text-[#F9FAFB] tracking-tight">Global Rankings</h2>
                             <p className="text-[14px] text-[#9CA3AF] mt-[4px]">Live valuation progression map and multi-year analytics.</p>
                         </div>
-                        <div className="flex bg-[#111827] rounded-[8px] p-[4px] border border-[#1F2937]">
-                             <button
-                                 onClick={() => setLeaderboardMode('standard')}
-                                 className={`px-[20px] py-[8px] rounded-[6px] text-[12px] font-bold uppercase transition-all ${leaderboardMode === 'standard' ? 'bg-[#7C3AED] text-white' : 'text-[#9CA3AF] hover:text-[#F9FAFB]'}`}
-                             >
-                                 Standard
-                             </button>
-                             <button
-                                 onClick={() => setLeaderboardMode('fun')}
-                                 className={`px-[20px] py-[8px] rounded-[6px] text-[12px] font-bold uppercase transition-all ${leaderboardMode === 'fun' ? 'bg-yellow-600 text-white shadow-glow-sm' : 'text-[#9CA3AF] hover:text-[#F9FAFB]'}`}
-                             >
-                                 Experimental
-                             </button>
+                        <div className="flex items-center gap-16">
+                            <div className="flex bg-[#111827] rounded-[8px] p-[4px] border border-[#1F2937]">
+                                 <button
+                                     onClick={() => setLeaderboardMode('standard')}
+                                     className={`px-[20px] py-[8px] rounded-[6px] text-[12px] font-bold uppercase transition-all ${leaderboardMode === 'standard' ? 'bg-[#7C3AED] text-white' : 'text-[#9CA3AF] hover:text-[#F9FAFB]'}`}
+                                 >
+                                     Standard
+                                 </button>
+                                 <button
+                                     onClick={() => setLeaderboardMode('fun')}
+                                     className={`px-[20px] py-[8px] rounded-[6px] text-[12px] font-bold uppercase transition-all ${leaderboardMode === 'fun' ? 'bg-yellow-600 text-white shadow-glow-sm' : 'text-[#9CA3AF] hover:text-[#F9FAFB]'}`}
+                                 >
+                                     Experimental
+                                 </button>
+                            </div>
+                            <button 
+                                onClick={() => { setFilteredRound(null); setIsFullScreenLeaderboard(true); }}
+                                className="px-[20px] py-[8px] bg-emerald-500/10 hover:bg-emerald-500 text-emerald-500 hover:text-white rounded-[8px] text-[12px] font-bold uppercase tracking-widest transition-all border border-emerald-500/20 shadow-glow-sm flex items-center gap-8"
+                            >
+                                <FiActivity size={14} /> Full Screen
+                            </button>
                         </div>
                     </div>
                     {leaderboardMode === 'standard' ? <Leaderboard /> : <FunLeaderboard />}
                 </div>
             )}
 
-            {['r1', 'r2', 'r3', 'r4', 'r5', ...funRounds.map(f => f.id)].includes(activeTab) && (() => {
-                const isFunTab = activeTab.startsWith('funderon');
-                const tabItem = [...menuItems, ...funRounds].find(m => m.id === activeTab);
+            {['r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r7', 'r8', 'r9', 'r10'].includes(activeTab) && (() => {
+                const tabItem = menuItems.find(m => m.id === activeTab);
+                const isFunTab = tabItem?.isFun;
                 const tabYear = tabItem?.year;
                 const isThisRoundLive = settings?.currentRound === tabYear && settings?.isRoundActive;
                 
@@ -942,64 +1181,74 @@ const AdminDashboard = () => {
                         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-[24px] mb-[48px]">
                             <div>
                                 <h2 className="text-[32px] font-semibold text-[#F9FAFB] tracking-tight">
-                                    {isFunTab ? tabItem?.label : `Phase 0${activeTab.slice(1)}`}
+                                    {isFunTab ? tabItem?.label : `Round ${activeTab.slice(1)}`}
                                 </h2>
                                 <p className="text-[14px] text-[#7C3AED] font-medium uppercase tracking-widest mt-[8px]">
-                                    {isFunTab ? 'Experimental Engagement Cluster' : `Deployment Window: Year ${tabYear}`}
+                                    {isFunTab ? 'Fun Round Activity' : `Standard Operations: Round ${tabYear + 1}`}
                                 </p>
                             </div>
                             
-                            <Button
-                                variant={isThisRoundLive ? 'secondary' : 'primary'}
-                                onClick={() => {
-                                    if (isLocked) {
-                                        setMsg({ type: 'error', text: 'This round is permanently locked. Use Reset Competition to start over.' });
-                                        return;
-                                    }
-                                    handleStartStopRound(!isThisRoundLive);
-                                }}
-                                className={`w-full lg:w-auto h-[48px] px-[28px] ${btnStyle}`}
-                            >
-                                {btnIcon}
-                                <span className="text-[14px] uppercase tracking-wider ml-[8px]">{btnLabel}</span>
-                            </Button>
+                            <div className="flex flex-col lg:flex-row gap-16 w-full lg:w-auto">
+                                <Button
+                                    variant="secondary"
+                                    onClick={() => {
+                                        setLeaderboardMode(isFunTab ? 'fun' : 'standard');
+                                        setFilteredRound(isFunTab ? tabYear - 4 : tabYear);
+                                        setIsFullScreenLeaderboard(true);
+                                    }}
+                                    className="h-[48px] px-[28px] border-yellow-500/30 text-yellow-500 hover:bg-yellow-500/10"
+                                >
+                                    <FiAward size={20} />
+                                    <span className="text-[14px] uppercase tracking-wider ml-[8px]">Ranking</span>
+                                </Button>
+
+                                <Button
+                                    variant={isThisRoundLive ? 'secondary' : 'primary'}
+                                    onClick={() => {
+                                        if (isLocked) {
+                                            setMsg({ type: 'error', text: 'This round is permanently locked. Use Reset Competition to start over.' });
+                                            return;
+                                        }
+                                        handleStartStopRound(!isThisRoundLive);
+                                    }}
+                                    className={`h-[48px] px-[28px] ${btnStyle}`}
+                                >
+                                    {btnIcon}
+                                    <span className="text-[14px] uppercase tracking-wider ml-[8px]">{btnLabel}</span>
+                                </Button>
+                            </div>
                         </div>
+
+                        {isFunTab && isThisRoundLive && (
+                            <div className="mb-[32px] p-[24px] bg-yellow-500/5 border border-yellow-500/20 rounded-[12px] flex items-center justify-between animate-in slide-in-from-top-4 duration-500">
+                                <div className="flex items-center gap-[16px]">
+                                    <div className="relative">
+                                        <FiUsers className="text-yellow-500" size={32} />
+                                        <div className="absolute -top-4 -right-4 bg-yellow-500 text-black text-[10px] font-black px-4 rounded-full animate-bounce">LIVE</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-[20px] font-bold text-white">
+                                            {activeQuestionStats.answeredCount} / {activeQuestionStats.totalTeams} Units Answered
+                                        </div>
+                                        <p className="text-[12px] text-yellow-500/60 uppercase tracking-widest font-medium">Telemetry Synchronized - Polling every 3s</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Filter Area for Roles / Sub-Rounds */}
                         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-[24px] mb-[32px] pb-[24px] border-b border-[#1F2937]">
                              <div className="flex bg-[#111827] rounded-[8px] p-[4px] border border-[#1F2937]">
-                                 {(isFunTab ? ['fun'] : ['cto', 'cfo', 'pm']).map(role => (
+                                 {(isFunTab ? ['scenarios'] : ['cto', 'cfo', 'pm']).map(role => (
                                      <button
                                          key={role}
                                          onClick={() => { setActiveRoleFilter(role); setIsAddingQuestion(false); }}
                                          className={`px-[24px] py-[8px] rounded-[6px] text-[14px] font-medium uppercase transition-all ${activeRoleFilter === role ? 'bg-[#7C3AED] text-white shadow-glow-sm' : 'text-[#9CA3AF] hover:text-[#F9FAFB]'}`}
                                      >
-                                         {role === 'fun' ? 'All Participants' : role}
+                                         {role === 'scenarios' ? 'Scenarios' : role}
                                      </button>
                                  ))}
                              </div>
-
-                             {isFunTab && (
-                                 <div className="flex items-center gap-[12px]">
-                                     <label className="text-[11px] font-bold text-[#9CA3AF] uppercase">Sub-Round Map:</label>
-                                     <select 
-                                        className="bg-[#111827] border border-[#1F2937] text-[#F9FAFB] text-[14px] py-[8px] px-[12px] rounded-[8px] focus:outline-none"
-                                        onChange={(e) => {
-                                            const qId = e.target.value;
-                                            if (qId) {
-                                               const q = questions.find(qn => qn._id === qId);
-                                               if (q) handleEditClick(q);
-                                            }
-                                        }}
-                                     >
-                                         <option value="">Select Scenario...</option>
-                                         {questions.filter(q => q.year === tabYear && q.role === 'fun').map((q, idx) => (
-                                             <option key={q._id} value={q._id}>Sub-Round {idx + 1}: {q.question.substring(0, 30)}...</option>
-                                         ))}
-                                     </select>
-                                 </div>
-                             )}
-
                              <Button 
                                 variant={isAddingQuestion ? 'ghost' : 'secondary'}
                                 onClick={() => {
@@ -1028,17 +1277,17 @@ const AdminDashboard = () => {
                                 className="h-[40px] px-[16px] text-[12px]"
                              >
                                 {isAddingQuestion ? <FiX className="text-red-400" /> : <FiPlus />}
-                                <span className="ml-[8px]">{isAddingQuestion ? 'CANCEL' : `PLACE NEW SCENARIO FOR ${activeRoleFilter.toUpperCase()}`}</span>
+                                <span className="ml-[8px]">{isAddingQuestion ? 'CANCEL' : (isFunTab ? 'ADD FUN QUESTION' : `PLACE NEW SCENARIO FOR ${activeRoleFilter.toUpperCase()}`)}</span>
                              </Button>
                         </div>
 
                         {/* Add Question Form */}
                         {isAddingQuestion && (
-                            <div className="bg-[#1F2937] rounded-[12px] p-[32px] mb-[32px] border border-[#7C3AED]/20 animate-in zoom-in-95 duration-300">
+                            <div className="bg-[#111827]/80 backdrop-blur-xl border border-[#7C3AED]/30 rounded-[12px] p-[32px] mb-[32px] animate-in zoom-in-95 duration-300">
                                 <div className="mb-[24px] flex justify-between items-start">
                                     <div>
-                                        <h4 className="text-[18px] font-semibold text-[#F9FAFB]">{editingQId ? 'Edit Simulation' : 'Scenario Architect'} - {activeRoleFilter.toUpperCase()}</h4>
-                                        <p className="text-[12px] text-[#9CA3AF] mt-[4px]">{editingQId ? `Modifying existing deployment ID: ${editingQId}` : `Phase ${activeTab.slice(1)} Simulation Parameters`}</p>
+                                        <h4 className="text-[18px] font-semibold text-[#F9FAFB]">{editingQId ? 'Modify Scenario' : (isFunTab ? '⚡ Fun Round Architect' : 'Strategic Scenario Architect')}</h4>
+                                        <p className="text-[12px] text-[#9CA3AF] mt-[4px]">{isFunTab ? 'Speed-based scoring enabled: First to answer gets 100pts.' : (editingQId ? `Modifying existing deployment ID: ${editingQId}` : 'Phase Simulation Parameters')}</p>
                                     </div>
                                     <select 
                                         value={newQ.type}
@@ -1046,96 +1295,140 @@ const AdminDashboard = () => {
                                         className="bg-[#111827] border border-[#1F2937] text-[#7C3AED] text-[12px] font-bold px-[12px] py-[6px] rounded uppercase tracking-wider focus:outline-none"
                                     >
                                         <option value="mcq">MCQ</option>
-                                        <option value="truefalse">True/False</option>
-                                        <option value="multi-select">Multi-Selection</option>
-                                        <option value="range">Range/Numerical</option>
-                                        <option value="numerical">Numerical Exact</option>
+                                        {isFunTab ? (
+                                            <option value="text">Fill the Answer</option>
+                                        ) : (
+                                            <>
+                                                <option value="truefalse">True/False</option>
+                                                <option value="multi-select">Multi-Selection</option>
+                                                <option value="range">Range/Numerical</option>
+                                                <option value="numerical">Numerical Exact</option>
+                                            </>
+                                        )}
                                     </select>
                                 </div>
                                 
                                 <form onSubmit={handleCreateQuestion} className="flex flex-col gap-[24px]">
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-[16px]">
-                                        <div className="flex flex-col gap-[8px]">
-                                            <label className="text-[12px] font-medium text-[#10B981] uppercase tracking-widest px-[4px]">Correct Reward</label>
-                                            <input 
-                                                type="number"
-                                                value={newQ.scoringRubric.full}
-                                                onChange={e=>setNewQ({...newQ, scoringRubric: {...newQ.scoringRubric, full: Number(e.target.value)}})}
-                                                className="w-full px-[16px] py-[10px] bg-[#111827] border border-[#1F2937] rounded-[8px] text-[14px] text-emerald-400 focus:border-emerald-500/50 focus:outline-none transition-all font-mono"
-                                            />
-                                        </div>
-                                        {['multi-select', 'range', 'numerical'].includes(newQ.type) && (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-[24px]">
+                                        <div className="flex flex-col gap-[20px]">
                                             <div className="flex flex-col gap-[8px]">
-                                                <label className="text-[12px] font-medium text-[#7C3AED] uppercase tracking-widest px-[4px]">
-                                                    {newQ.type === 'numerical' ? 'Target Value' : 'Partial Credit'}
-                                                </label>
-                                                <input 
-                                                    type="number"
-                                                    value={newQ.type === 'numerical' ? newQ.range.min : newQ.scoringRubric.partial}
-                                                    onChange={e=>{
-                                                        if(newQ.type === 'numerical') {
-                                                            setNewQ({...newQ, range: {...newQ.range, min: Number(e.target.value), max: Number(e.target.value)}});
-                                                        } else {
-                                                            setNewQ({...newQ, scoringRubric: {...newQ.scoringRubric, partial: Number(e.target.value)}});
-                                                        }
-                                                    }}
-                                                    className="w-full px-[16px] py-[10px] bg-[#111827] border border-[#1F2937] rounded-[8px] text-[14px] text-[#A78BFA] focus:border-[#7C3AED]/50 focus:outline-none transition-all font-mono"
+                                                <label className="text-[12px] font-medium text-[#9CA3AF] uppercase tracking-widest px-[4px]">Mission Briefing (Question)</label>
+                                                <textarea 
+                                                    value={newQ.question}
+                                                    onChange={e => setNewQ({...newQ, question: e.target.value})}
+                                                    className="w-full h-[120px] px-[16px] py-[12px] bg-[#0B0F14] border border-[#1F2937] rounded-[12px] text-[14px] text-[#F9FAFB] focus:border-[#7C3AED] focus:outline-none transition-all resize-none"
+                                                    placeholder="Define the tactical objective..."
+                                                    required
                                                 />
                                             </div>
-                                        )}
-                                        {newQ.type === 'range' && (
-                                            <>
+
+                                            {isFunTab && (
                                                 <div className="flex flex-col gap-[8px]">
-                                                    <label className="text-[12px] font-medium text-[#7C3AED] uppercase tracking-widest px-[4px]">Min Value</label>
-                                                    <input 
-                                                        type="number"
-                                                        value={newQ.range.min}
-                                                        onChange={e=>setNewQ({...newQ, range: {...newQ.range, min: Number(e.target.value)}})}
-                                                        className="w-full px-[16px] py-[10px] bg-[#111827] border border-[#1F2937] rounded-[8px] text-[14px] text-[#A78BFA] focus:border-[#7C3AED]/50 focus:outline-none transition-all font-mono"
-                                                    />
+                                                    <label className="text-[12px] font-medium text-yellow-500 uppercase tracking-widest px-[4px]">Tactical Media Asset (Image/Clip)</label>
+                                                    <div className="flex gap-8">
+                                                        <input 
+                                                            type="text" 
+                                                            value={newQ.assetUrl || ''} 
+                                                            onChange={e=>setNewQ({...newQ, assetUrl: e.target.value})} 
+                                                            className="flex-1 px-[16px] py-[10px] bg-[#111827] border border-[#1F2937] rounded-[8px] text-[14px] text-[#F9FAFB] focus:border-yellow-500/50 focus:outline-none transition-all font-mono" 
+                                                            placeholder="https://... or upload local" 
+                                                        />
+                                                        <label className="cursor-pointer px-16 py-10 bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-500 border border-yellow-500/30 rounded-8 flex items-center transition-all">
+                                                            <FiPlusSquare size={18} />
+                                                            <input 
+                                                                type="file" 
+                                                                className="hidden" 
+                                                                accept="image/*,video/*"
+                                                                onChange={(e) => {
+                                                                    const file = e.target.files[0];
+                                                                    if (file) {
+                                                                        const reader = new FileReader();
+                                                                        reader.onloadend = () => {
+                                                                            setNewQ({...newQ, assetUrl: reader.result});
+                                                                        };
+                                                                        reader.readAsDataURL(file);
+                                                                    }
+                                                                }}
+                                                            />
+                                                        </label>
+                                                    </div>
+                                                    {newQ.assetUrl && newQ.assetUrl.startsWith('data:') && (
+                                                        <p className="text-[10px] text-emerald-400 font-bold px-4 uppercase tracking-tighter">✅ Local asset embedded</p>
+                                                    )}
                                                 </div>
-                                                <div className="flex flex-col gap-[8px]">
-                                                    <label className="text-[12px] font-medium text-[#7C3AED] uppercase tracking-widest px-[4px]">Max Value</label>
-                                                    <input 
-                                                        type="number"
-                                                        value={newQ.range.max}
-                                                        onChange={e=>setNewQ({...newQ, range: {...newQ.range, max: Number(e.target.value)}})}
-                                                        className="w-full px-[16px] py-[10px] bg-[#111827] border border-[#1F2937] rounded-[8px] text-[14px] text-[#A78BFA] focus:border-[#7C3AED]/50 focus:outline-none transition-all font-mono"
-                                                    />
-                                                </div>
-                                            </>
-                                        )}
-                                        <div className="flex flex-col gap-[8px]">
-                                            <label className="text-[12px] font-medium text-red-400 uppercase tracking-widest px-[4px]">Penalty (-)</label>
-                                            <input 
-                                                type="number"
-                                                value={newQ.scoringRubric.incorrect}
-                                                onChange={e=>setNewQ({...newQ, scoringRubric: {...newQ.scoringRubric, incorrect: Number(e.target.value)}})}
-                                                className="w-full px-[16px] py-[10px] bg-[#111827] border border-[#1F2937] rounded-[8px] text-[14px] text-red-400 focus:border-red-500/50 focus:outline-none transition-all font-mono"
-                                            />
+                                            )}
                                         </div>
+
+                                        {!isFunTab && (
+                                            <div className="bg-[#111827] border border-[#1F2937] rounded-[12px] p-[20px] flex flex-col gap-[16px]">
+                                                <h5 className="text-[10px] font-bold text-[#4B5563] uppercase tracking-[0.2em] mb-[4px]">Scoring Rubric</h5>
+                                                <div className="grid grid-cols-2 gap-[16px]">
+                                                    <div className="flex flex-col gap-[8px]">
+                                                        <label className="text-[12px] font-medium text-[#10B981] uppercase tracking-widest px-[4px]">Correct Reward</label>
+                                                        <input 
+                                                            type="number"
+                                                            value={newQ.scoringRubric.full}
+                                                            onChange={e=>setNewQ({...newQ, scoringRubric: {...newQ.scoringRubric, full: Number(e.target.value)}})}
+                                                            className="w-full px-[16px] py-[10px] bg-[#0B0F14] border border-[#1F2937] rounded-[8px] text-[14px] text-emerald-400 focus:border-emerald-500/50 focus:outline-none transition-all font-mono"
+                                                        />
+                                                    </div>
+                                                    <div className="flex flex-col gap-[8px]">
+                                                        <label className="text-[12px] font-medium text-red-400 uppercase tracking-widest px-[4px]">Penalty (-)</label>
+                                                        <input 
+                                                            type="number"
+                                                            value={newQ.scoringRubric.incorrect}
+                                                            onChange={e=>setNewQ({...newQ, scoringRubric: {...newQ.scoringRubric, incorrect: Number(e.target.value)}})}
+                                                            className="w-full px-[16px] py-[10px] bg-[#0B0F14] border border-[#1F2937] rounded-[8px] text-[14px] text-red-400 focus:border-red-500/50 focus:outline-none transition-all font-mono"
+                                                        />
+                                                    </div>
+                                                </div>
+                                                {['multi-select', 'range', 'numerical'].includes(newQ.type) && (
+                                                    <div className="flex flex-col gap-[8px]">
+                                                        <label className="text-[12px] font-medium text-[#7C3AED] uppercase tracking-widest px-[4px]">
+                                                            {newQ.type === 'numerical' ? 'Target Value' : 'Partial Credit'}
+                                                        </label>
+                                                        <input 
+                                                            type="number"
+                                                            value={newQ.type === 'numerical' ? newQ.range.min : newQ.scoringRubric.partial}
+                                                            onChange={e=>{
+                                                                if(newQ.type === 'numerical') {
+                                                                    setNewQ({...newQ, range: {...newQ.range, min: Number(e.target.value), max: Number(e.target.value)}});
+                                                                } else {
+                                                                    setNewQ({...newQ, scoringRubric: {...newQ.scoringRubric, partial: Number(e.target.value)}});
+                                                                }
+                                                            }}
+                                                            className="w-full px-[16px] py-[10px] bg-[#0B0F14] border border-[#1F2937] rounded-[8px] text-[14px] text-[#A78BFA] focus:border-[#7C3AED]/50 focus:outline-none transition-all font-mono"
+                                                        />
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
 
-                                    <div className="flex flex-col gap-[8px]">
-                                        <label className="text-[12px] font-medium text-[#9CA3AF] uppercase tracking-widest px-[4px]">Simulation Script</label>
-                                        <textarea 
-                                            value={newQ.question}
-                                            onChange={e=>setNewQ({...newQ, question: e.target.value})}
-                                            className="w-full px-[16px] py-[12px] bg-[#111827] border border-[#1F2937] rounded-[8px] text-[14px] text-[#F9FAFB] min-h-[100px] focus:border-[#7C3AED] focus:outline-none transition-all"
-                                            placeholder="Define the tactical objective..."
-                                            required
-                                        />
-                                    </div>
+                                    {newQ.type === 'text' && (
+                                        <div className="flex flex-col gap-[8px] p-[24px] bg-[#111827] border border-[#1F2937] rounded-[12px]">
+                                            <label className="text-[12px] font-medium text-yellow-500 uppercase tracking-widest px-[4px]">Correct Answer (Case-Insensitive)</label>
+                                            <input 
+                                                type="text"
+                                                value={newQ.correctAnswer}
+                                                onChange={e => setNewQ({...newQ, correctAnswer: e.target.value})}
+                                                className="w-full px-[16px] py-[12px] bg-[#0B0F14] border border-[#1F2937] rounded-[12px] text-[14px] text-white focus:border-yellow-500/50 focus:outline-none transition-all font-mono"
+                                                placeholder="Enter the required response..."
+                                                required
+                                            />
+                                            <p className="text-[10px] text-[#9CA3AF] mt-4 italic font-medium px-4">The platform will automatically ignore capitalization when validating unit responses.</p>
+                                        </div>
+                                    )}
 
                                     {newQ.type === 'range' ? (
-                                        <div className="grid grid-cols-2 gap-[16px]">
+                                        <div className="grid grid-cols-2 gap-[16px] p-[24px] bg-[#111827] border border-[#1F2937] rounded-[12px]">
                                             <div className="flex flex-col gap-[8px]">
                                                 <label className="text-[12px] font-medium text-[#9CA3AF] uppercase tracking-widest px-[4px]">Minimum Bound</label>
                                                 <input 
                                                     type="number"
                                                     value={newQ.range.min}
                                                     onChange={e=>setNewQ({...newQ, range: {...newQ.range, min: Number(e.target.value)}})}
-                                                    className="w-full px-[16px] py-[12px] bg-[#111827] border border-[#1F2937] rounded-[8px] text-[14px] text-[#F9FAFB] focus:border-[#7C3AED] focus:outline-none transition-all font-mono"
+                                                    className="w-full px-[16px] py-[12px] bg-[#0B0F14] border border-[#1F2937] rounded-[8px] text-[14px] text-[#F9FAFB] focus:border-[#7C3AED] focus:outline-none transition-all font-mono"
                                                 />
                                             </div>
                                             <div className="flex flex-col gap-[8px]">
@@ -1144,7 +1437,7 @@ const AdminDashboard = () => {
                                                     type="number"
                                                     value={newQ.range.max}
                                                     onChange={e=>setNewQ({...newQ, range: {...newQ.range, max: Number(e.target.value)}})}
-                                                    className="w-full px-[16px] py-[12px] bg-[#111827] border border-[#1F2937] rounded-[8px] text-[14px] text-[#F9FAFB] focus:border-[#7C3AED] focus:outline-none transition-all font-mono"
+                                                    className="w-full px-[16px] py-[12px] bg-[#0B0F14] border border-[#1F2937] rounded-[8px] text-[14px] text-[#F9FAFB] focus:border-[#7C3AED] focus:outline-none transition-all font-mono"
                                                 />
                                             </div>
                                         </div>
@@ -1229,91 +1522,126 @@ const AdminDashboard = () => {
                             </div>
                         )}
 
-                        {/* List of Questions */}
                         <div className="flex flex-col gap-[16px]">
-                            {questions.filter(q => q.year === tabYear && q.role === activeRoleFilter).length === 0 ? (
-                                <div className="py-[48px] text-center text-[#9CA3AF] text-[14px] border border-dashed border-[#1F2937] rounded-[12px]">
-                                    No scenarios configured for {activeRoleFilter === 'fun' ? 'ALL PARTICIPANTS' : activeRoleFilter.toUpperCase()} in this phase.
-                                </div>
+                            {activeRoleFilter === 'leaderboard' ? (
+                                <FunLeaderboard />
                             ) : (
-                                questions.filter(q => q.year === tabYear && q.role === activeRoleFilter).map((q, i) => (
-                                    <div key={i} className="p-[24px] bg-[#111827] rounded-[12px] border border-[#1F2937] flex flex-col md:flex-row items-start justify-between gap-[24px] group hover:bg-[#1F2937]/50 hover:border-[#7C3AED]/30 transition-all duration-300">
-                                        <div className="flex-1 w-full">
-                                            <div className="flex items-center gap-[12px] mb-[16px]">
-                                                <span className="bg-[#7C3AED]/10 text-[#7C3AED] px-[12px] py-[4px] rounded-[4px] text-[10px] font-bold uppercase tracking-wider border border-[#7C3AED]/20">
-                                                    {q.role === 'fun' ? 'All Participants' : q.role}
-                                                </span>
-                                                <span className="text-[12px] font-medium text-[#9CA3AF] uppercase tracking-widest flex items-center">
-                                                    <FiAward className="mr-[8px] text-[#7C3AED]" size={14} /> {q.scoringRubric?.full || 0} Units
-                                                </span>
-                                            </div>
-                                            <p className="text-[18px] font-semibold text-[#F9FAFB] leading-tight mb-[20px] transition-colors">{q.question}</p>
-                                            <div className="flex flex-wrap gap-[12px]">
-                                                {['range', 'numerical'].includes(q.type) ? (
-                                                    <div className="px-[12px] py-[6px] rounded-[4px] text-[12px] font-medium bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center gap-[8px]">
-                                                        <FiCheckCircle size={14} />
-                                                        {q.type === 'range' ? `Correct Range: ${q.acceptableRange?.min || 0} - ${q.acceptableRange?.max || 0}` : `Correct Value: ${q.correctAnswer || q.acceptableRange?.min || 0}`}
+                                <>
+                                    {questions.filter(q => q.year === tabYear && (isFunTab ? q.role === 'fun' : q.role === activeRoleFilter)).length === 0 ? (
+                                        <div className="py-[48px] text-center text-[#9CA3AF] text-[14px] border border-dashed border-[#1F2937] rounded-[12px]">
+                                            No scenarios created for {isFunTab ? 'this Experimental Round' : activeRoleFilter.toUpperCase()} yet. Click "Add Scenario" to initiate.
+                                        </div>
+                                    ) : (
+                                        questions.filter(q => q.year === tabYear && (isFunTab ? q.role === 'fun' : q.role === activeRoleFilter)).map((q, i) => (
+                                            <div key={i} className="p-[24px] bg-[#111827] rounded-[12px] border border-[#1F2937] flex flex-col md:flex-row items-start justify-between gap-[24px] group hover:bg-[#1F2937]/50 hover:border-[#7C3AED]/30 transition-all duration-300">
+                                                <div className="flex-1 w-full">
+                                                    <div className="flex items-center gap-[12px] mb-[16px]">
+                                                        <span className={`px-[12px] py-[4px] rounded-[4px] text-[10px] font-bold uppercase tracking-wider border ${isFunTab ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20' : 'bg-[#7C3AED]/10 text-[#7C3AED] border-[#7C3AED]/20'}`}>
+                                                            {isFunTab ? 'Fun Round' : q.role}
+                                                        </span>
+                                                        {!isFunTab && (
+                                                            <span className="text-[12px] font-medium text-[#9CA3AF] uppercase tracking-widest flex items-center">
+                                                                <FiAward className="mr-[8px] text-[#7C3AED]" size={14} /> {q.scoringRubric?.full || 0} pts
+                                                            </span>
+                                                        )}
+                                                        {isFunTab && (
+                                                            <div className="flex items-center gap-[12px]">
+                                                                <span className="text-[12px] font-medium text-yellow-500/60 uppercase tracking-widest flex items-center">
+                                                                    <FiZap className="mr-[8px]" size={14} /> Speed Scoring
+                                                                </span>
+                                                                <span className="text-[10px] font-black bg-yellow-500/10 text-yellow-500 px-8 py-2 rounded-full border border-yellow-500/20">
+                                                                    {(() => {
+                                                                        const count = teams.filter(t => t.gameState?.[`year${tabYear}`]?.answers?.fun?.[q._id]).length;
+                                                                        return `${count} UNITS ANSWERED`;
+                                                                    })()}
+                                                                </span>
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                ) : q.type === 'truefalse' ? (
-                                                    <div className="flex gap-[12px]">
-                                                        {['A', 'B'].map((optId) => {
-                                                            const isCorrect = q.correctAnswer === optId;
+                                                    <p className="text-[18px] font-semibold text-[#F9FAFB] leading-tight mb-[20px] transition-colors">{q.question}</p>
+                                                    <div className="flex flex-wrap gap-[12px]">
+                                                        {['range', 'numerical', 'text'].includes(q.type) ? (
+                                                            <div className="px-[12px] py-[6px] rounded-[4px] text-[12px] font-medium bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center gap-[8px]">
+                                                                <FiCheckCircle size={14} />
+                                                                {q.type === 'range' ? `Correct Range: ${q.acceptableRange?.min || 0} - ${q.acceptableRange?.max || 0}` : `Correct Value: ${q.correctAnswer || q.acceptableRange?.min || 0}`}
+                                                            </div>
+                                                        ) : q.type === 'truefalse' ? (
+                                                            <div className="flex gap-[12px]">
+                                                                {['A', 'B'].map((optId) => {
+                                                                    const isCorrect = q.correctAnswer === optId;
+                                                                    return (
+                                                                        <div key={optId} className={`px-[12px] py-[6px] rounded-[4px] text-[12px] font-medium flex items-center border transition-all ${
+                                                                            isCorrect 
+                                                                            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 font-bold' 
+                                                                            : 'bg-white/5 border-[#1F2937] text-[#9CA3AF] opacity-60'
+                                                                        }`}>
+                                                                            {isCorrect && <FiCheckCircle size={14} className="mr-[8px]" />}
+                                                                            {optId === 'A' ? 'TRUE' : 'FALSE'}
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        ) : q.options?.map((o, idx) => {
+                                                            const isCorrect = q.type === 'multi-select' 
+                                                                ? (Array.isArray(q.correctAnswer) ? q.correctAnswer.includes(o.optionId) : (q.correctAnswers || []).includes(o.optionId))
+                                                                : o.optionId === q.correctAnswer;
+
                                                             return (
-                                                                <div key={optId} className={`px-[12px] py-[6px] rounded-[4px] text-[12px] font-medium flex items-center border transition-all ${
+                                                                <div key={idx} className={`px-[12px] py-[6px] rounded-[4px] text-[12px] font-medium flex items-center border transition-all ${
                                                                     isCorrect 
                                                                     ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 font-bold' 
                                                                     : 'bg-white/5 border-[#1F2937] text-[#9CA3AF] opacity-60'
                                                                 }`}>
                                                                     {isCorrect && <FiCheckCircle size={14} className="mr-[8px]" />}
-                                                                    {optId === 'A' ? 'TRUE' : 'FALSE'}
+                                                                    <span className="mr-[8px] opacity-40 font-mono">{o.optionId}</span>
+                                                                    {o.text}
                                                                 </div>
                                                             );
                                                         })}
                                                     </div>
-                                                ) : q.options?.map((o, idx) => {
-                                                    const isCorrect = q.type === 'multi-select' 
-                                                        ? (Array.isArray(q.correctAnswer) ? q.correctAnswer.includes(o.optionId) : (q.correctAnswers || []).includes(o.optionId))
-                                                        : o.optionId === q.correctAnswer;
-
-                                                    return (
-                                                        <div key={idx} className={`px-[12px] py-[6px] rounded-[4px] text-[12px] font-medium flex items-center border transition-all ${
-                                                            isCorrect 
-                                                            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 font-bold' 
-                                                            : 'bg-white/5 border-[#1F2937] text-[#9CA3AF] opacity-60'
-                                                        }`}>
-                                                            {isCorrect && <FiCheckCircle size={14} className="mr-[8px]" />}
-                                                            <span className="mr-[8px] opacity-40 font-mono">{o.optionId}</span>
-                                                            {o.text}
-                                                        </div>
-                                                    );
-                                                })}
+                                                </div>
+                                                <div className="flex flex-col gap-[8px] opacity-0 group-hover:opacity-100 transition-all duration-300">
+                                                    {isFunTab && (
+                                                        <button 
+                                                            onClick={() => handleActivateFunQuestion(q._id)}
+                                                            className={`p-[12px] rounded-[8px] transition-all border ${
+                                                                settings?.activeFunQuestionId === q._id 
+                                                                ? 'bg-yellow-500 text-black border-yellow-400 animate-pulse' 
+                                                                : 'bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500 hover:text-black border-yellow-500/20'
+                                                            }`}
+                                                            title={settings?.activeFunQuestionId === q._id ? "Question is Live" : "Broadcast to Participants"}
+                                                        >
+                                                            <FiTarget size={18} />
+                                                        </button>
+                                                    )}
+                                                    {!isFunTab && (
+                                                        <button 
+                                                            onClick={() => handleEditClick(q)}
+                                                            className="p-[12px] rounded-[8px] bg-brand-primary/10 text-brand-primary hover:bg-brand-primary hover:text-white transition-all border border-brand-primary/20"
+                                                            title="Edit Scenario"
+                                                        >
+                                                            <FiTarget size={18} />
+                                                        </button>
+                                                    )}
+                                                    <button 
+                                                        onClick={async () => {
+                                                            if(window.confirm('IRREVERSIBLE: Eliminate this scenario from operational clusters?')) {
+                                                                await adminAPI.deleteQuestion(q._id);
+                                                                const res = await adminAPI.getQuestions();
+                                                                setQuestions(res.data);
+                                                                setMsg({type:'success', text: 'Scenario successfully eliminated.'});
+                                                            }
+                                                        }}
+                                                        className="p-[12px] rounded-[8px] bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all border border-red-500/20"
+                                                        title="Delete Scenario"
+                                                    >
+                                                        <FiTrash2 size={18} />
+                                                    </button>
+                                                </div>
                                             </div>
-                                        </div>
-                                        <div className="flex flex-col gap-[8px] opacity-0 group-hover:opacity-100 transition-all duration-300">
-                                            <button 
-                                                onClick={() => handleEditClick(q)}
-                                                className="p-[12px] rounded-[8px] bg-brand-primary/10 text-brand-primary hover:bg-brand-primary hover:text-white transition-all border border-brand-primary/20"
-                                                title="Edit Scenario"
-                                            >
-                                                <FiTarget size={18} />
-                                            </button>
-                                            <button 
-                                                onClick={async () => {
-                                                    if(window.confirm('IRREVERSIBLE: Eliminate this scenario from operational clusters?')) {
-                                                        await adminAPI.deleteQuestion(q._id);
-                                                        const res = await adminAPI.getQuestions();
-                                                        setQuestions(res.data);
-                                                        setMsg({type:'success', text: 'Scenario successfully eliminated.'});
-                                                    }
-                                                }}
-                                                className="p-[12px] rounded-[8px] bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white transition-all border border-red-500/20"
-                                                title="Delete Scenario"
-                                            >
-                                                <FiTrash2 size={18} />
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))
+                                        ))
+                                    )}
+                                </>
                             )}
                         </div>
                     </Card>
@@ -1375,7 +1703,7 @@ const AdminDashboard = () => {
                                     type="password"
                                     value={newAdmin.password}
                                     onChange={e=>setNewAdmin({...newAdmin, password: e.target.value})}
-                                    placeholder="••••••••"
+                                    placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
                                     className="w-full px-[16px] py-[12px] bg-[#111827] border border-[#1F2937] rounded-[8px] text-[14px] text-[#F9FAFB] focus:border-[#7C3AED] focus:outline-none transition-all"
                                     required
                                 />
@@ -1394,12 +1722,7 @@ const AdminDashboard = () => {
                             </h3>
                             <p className="text-[14px] text-[#9CA3AF]">Reset the entire competition back to Round 1. This wipes all progress but keeps teams and questions.</p>
                         </div>
-                        <button 
-                            onClick={() => handleReset('partial')}
-                            className="w-full px-[32px] py-[16px] bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded-[8px] text-[16px] font-bold uppercase tracking-widest transition-all border border-red-500/20 shadow-glow-sm flex justify-center items-center gap-12"
-                        >
-                            <FiActivity size={20} /> Reset Competition
-                        </button>
+                        
                      </Card>
                 </div>
             )}
@@ -1420,7 +1743,6 @@ const AdminDashboard = () => {
                         </Button>
                     </div>
 
-                    {!createdTeamId ? (
                         <div className="flex flex-col gap-32">
                             {/* REGISTER NEW TEAM FORM */}
                             <Card className="p-[40px]">
@@ -1433,23 +1755,54 @@ const AdminDashboard = () => {
                                         // Refresh teams list
                                         const tms = await adminAPI.getTeams();
                                         setTeams(tms.data.teams || []);
+                                        
+                                        // Automatically show passwords for the newly created team
+                                        const nextVisible = { ...visiblePasswords };
+                                        res.data.members.forEach((m, idx) => {
+                                            nextVisible[`${res.data._id}-${idx}`] = true;
+                                        });
+                                        setVisiblePasswords(nextVisible);
+
                                     } catch (err) {
                                         setMsg({ type: 'error', text: err.response?.data?.error || 'Registration failed.' });
                                     }
                                 }} className="flex flex-col gap-[32px]">
-                                    <div className="flex flex-col gap-[8px]">
-                                        <label className="text-[12px] font-medium text-[#9CA3AF] uppercase tracking-widest px-[4px]">Team Identity</label>
-                                        <input 
-                                            type="text"
-                                            placeholder="Enter Team Name"
-                                            value={newTeam.teamName}
-                                            onChange={e => setNewTeam({...newTeam, teamName: e.target.value})}
-                                            className="w-full px-[16px] py-[12px] bg-[#111827] border border-[#1F2937] rounded-[8px] text-[14px] text-[#F9FAFB] focus:border-[#7C3AED] focus:outline-none transition-all"
-                                            required
-                                        />
-                                    </div>
 
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-[24px]">
+
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-[24px]">
+                                        <div className="flex flex-col gap-[8px]">
+                                            <label className="text-[12px] font-medium text-[#9CA3AF] uppercase tracking-widest px-[4px]">Team Identity</label>
+                                            <input 
+                                                type="text"
+                                                placeholder="Enter Team Name"
+                                                value={newTeam.teamName}
+                                                onChange={e => setNewTeam({...newTeam, teamName: e.target.value})}
+                                                className="w-full px-[16px] py-[12px] bg-[#111827] border border-[#1F2937] rounded-[8px] text-[14px] text-[#F9FAFB] focus:border-[#7C3AED] focus:outline-none transition-all"
+                                                required
+                                            />
+                                        </div>
+                                        <div className="flex flex-col gap-[8px]">
+                                            <label className="text-[12px] font-medium text-[#9CA3AF] uppercase tracking-widest px-[4px]">Cloud Domain</label>
+                                            <input 
+                                                type="text"
+                                                placeholder="team1.aws-tycoon.com"
+                                                value={newTeam.domain}
+                                                onChange={e => setNewTeam({...newTeam, domain: e.target.value})}
+                                                className="w-full px-[16px] py-[12px] bg-[#111827] border border-[#1F2937] rounded-[8px] text-[14px] text-[#F9FAFB] focus:border-[#7C3AED] focus:outline-none transition-all font-mono"
+                                            />
+                                        </div>
+                                        <div className="flex flex-col gap-[8px]">
+                                            <label className="text-[12px] font-medium text-[#9CA3AF] uppercase tracking-widest px-[4px]">Starting Population</label>
+                                            <input 
+                                                type="number"
+                                                value={newTeam.population}
+                                                onChange={e => setNewTeam({...newTeam, population: Number(e.target.value)})}
+                                                className="w-full px-[16px] py-[12px] bg-[#111827] border border-[#1F2937] rounded-[8px] text-[14px] text-[#F9FAFB] focus:border-[#7C3AED] focus:outline-none transition-all font-mono"
+                                            />
+                                        </div>
+                                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-[24px]">
                                         {newTeam.members.map((member, idx) => (
                                             <div key={idx} className="flex flex-col gap-[16px] p-[20px] bg-[#111827] rounded-[12px] border border-[#1F2937]">
                                                 <span className="text-[12px] font-bold text-[#7C3AED] uppercase tracking-widest">{member.role}</span>
@@ -1503,95 +1856,204 @@ const AdminDashboard = () => {
                                     <span className="text-12 text-[#9CA3AF] font-medium">{teams.length} Teams Online</span>
                                 </div>
                                 <div className="overflow-x-auto max-h-[600px] overflow-y-auto hidden-scrollbar">
-                                    <table className="w-full text-left">
+                                    <table className="w-full text-left border-collapse">
                                         <thead className="bg-[#0F172A] border-b border-[#1F2937] sticky top-0 z-10">
                                             <tr>
-                                                <th className="px-16 py-12 text-10 font-bold text-[#9CA3AF] uppercase tracking-widest">Team ID</th>
-                                                <th className="px-16 py-12 text-10 font-bold text-[#9CA3AF] uppercase tracking-widest">Team Name</th>
-                                                <th className="px-16 py-12 text-10 font-bold text-[#9CA3AF] uppercase tracking-widest">Operator (Role)</th>
-                                                <th className="px-16 py-12 text-10 font-bold text-[#9CA3AF] uppercase tracking-widest border-l border-[#1F2937]">Password</th>
+                                                <th className="px-16 py-12 text-[10px] font-bold text-[#9CA3AF] uppercase tracking-widest">Team ID</th>
+                                                <th className="px-16 py-12 text-[10px] font-bold text-[#9CA3AF] uppercase tracking-widest">Team Name</th>
+                                                <th className="px-16 py-12 text-[10px] font-bold text-[#9CA3AF] uppercase tracking-widest">Domain</th>
+                                                <th className="px-16 py-12 text-[10px] font-bold text-[#9CA3AF] uppercase tracking-widest">Population</th>
+                                                <th className="px-16 py-12 text-[10px] font-bold text-[#9CA3AF] uppercase tracking-widest">Operator (Role)</th>
+                                                <th className="px-16 py-12 text-[10px] font-bold text-[#9CA3AF] uppercase tracking-widest border-l border-[#1F2937]">
+                                                    <div className="flex items-center justify-between">
+                                                        <span>Password</span>
+                                                        <button 
+                                                            onClick={() => {
+                                                                const newState = !showRegistryPasswords;
+                                                                setShowRegistryPasswords(newState);
+                                                                // Toggle all individual ones too
+                                                                const nextVisible = {};
+                                                                teams.forEach(t => t.members.forEach((m, idx) => {
+                                                                    nextVisible[`${t._id}-${idx}`] = newState;
+                                                                }));
+                                                                setVisiblePasswords(nextVisible);
+                                                            }} 
+                                                            className="text-[#7C3AED] hover:text-[#A78BFA] transition-all"
+                                                        >
+                                                            {showRegistryPasswords ? <FiEyeOff size={14} /> : <FiEye size={14} />}
+                                                        </button>
+                                                    </div>
+                                                </th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-[#1F2937]">
-                                            {teams.map((team, tIdx) => (
-                                                <React.Fragment key={team._id}>
-                                                    {team.members.map((member, mIdx) => (
-                                                        <tr key={`${team._id}-${mIdx}`} className={`hover:bg-white/[0.02] transition-colors ${mIdx === 0 ? 'bg-white/[0.01]' : ''}`}>
-                                                            {mIdx === 0 ? (
-                                                                <td className="px-16 py-12 align-top" rowSpan={3}>
-                                                                    <span className="font-mono text-14 text-[#7C3AED] font-bold">{team.teamId}</span>
-                                                                </td>
-                                                            ) : null}
-                                                            {mIdx === 0 ? (
-                                                                <td className="px-16 py-12 align-top" rowSpan={3}>
-                                                                    <span className="text-14 font-semibold text-[#F9FAFB]">{team.teamName}</span>
-                                                                </td>
-                                                            ) : null}
-                                                            <td className="px-16 py-12">
-                                                                <div className="flex items-center gap-8">
-                                                                    <span className="text-13 text-[#D1D5DB]">{member.name}</span>
-                                                                    <span className="text-9 font-bold text-[#7C3AED] bg-[#7C3AED]/10 px-6 py-2 rounded border border-[#7C3AED]/20 uppercase">{member.role}</span>
-                                                                </div>
-                                                            </td>
-                                                            <td className="px-16 py-12 border-l border-[#1F2937]">
-                                                                <input 
-                                                                    type="text"
-                                                                    value={member.password}
-                                                                    readOnly
-                                                                    className="w-full bg-[#0B0F14] border border-[#1F2937] rounded-[4px] px-[8px] py-[4px] text-[12px] font-mono text-emerald-400 font-bold opacity-70 cursor-default focus:outline-none"
-                                                                />
-                                                            </td>
-                                                        </tr>
-                                                    ))}
-                                                </React.Fragment>
-                                            ))}
-                                            {teams.length === 0 && (
+                                            {teams.length === 0 ? (
                                                 <tr>
-                                                    <td colSpan="4" className="px-16 py-48 text-center text-[#4B5563] italic">
+                                                    <td colSpan={6} className="px-24 py-48 text-center text-[#4B5563] text-[14px]">
                                                         No teams registered in the command cluster yet.
                                                     </td>
                                                 </tr>
+                                            ) : (
+                                                teams.map((team) => (
+                                                    <React.Fragment key={team._id}>
+                                                        {team.members.map((member, mIdx) => {
+                                                            const passVisible = showRegistryPasswords || visiblePasswords[`${team._id}-${mIdx}`];
+                                                            return (
+                                                                <tr key={`${team._id}-${mIdx}`} className={`hover:bg-white/[0.02] transition-colors ${mIdx === 0 ? 'bg-white/[0.01]' : ''}`}>
+                                                                    {mIdx === 0 && (
+                                                                        <>
+                                                                            <td className="px-16 py-12 align-top" rowSpan={3}>
+                                                                                <span className="font-mono text-[14px] text-[#7C3AED] font-bold">{team.teamId}</span>
+                                                                            </td>
+                                                                            <td className="px-16 py-12 align-top" rowSpan={3}>
+                                                                                <span className="text-[14px] font-semibold text-[#F9FAFB]">{team.teamName}</span>
+                                                                            </td>
+                                                                            <td className="px-16 py-12 align-top" rowSpan={3}>
+                                                                                <span className="text-[12px] font-mono text-[#9CA3AF]">{team.domain || '---'}</span>
+                                                                            </td>
+                                                                            <td className="px-16 py-12 align-top" rowSpan={3}>
+                                                                                <span className="text-[12px] font-mono text-[#D1D5DB]">{team.population?.toLocaleString() || '---'}</span>
+                                                                            </td>
+                                                                        </>
+                                                                    )}
+                                                                    <td className="px-16 py-12">
+                                                                        <div className="flex items-center gap-8">
+                                                                            <span className="text-[13px] text-[#D1D5DB]">{member.name || '---'}</span>
+                                                                            <span className="text-[9px] font-bold text-[#7C3AED] bg-[#7C3AED]/10 px-6 py-2 rounded border border-[#7C3AED]/20 uppercase">{member.role}</span>
+                                                                        </div>
+                                                                    </td>
+                                                                    <td className="px-16 py-12 border-l border-[#1F2937]">
+                                                                        <div className="flex items-center justify-between gap-8">
+                                                                            <input 
+                                                                                type={passVisible ? 'text' : 'password'}
+                                                                                value={member.password}
+                                                                                readOnly
+                                                                                className="w-full bg-transparent border-none p-0 text-[14px] font-mono text-emerald-400 font-black tracking-[0.2em] focus:outline-none"
+                                                                            />
+                                                                            <div className="flex items-center gap-4">
+                                                                                <button 
+                                                                                    onClick={() => copyToClipboard(member.password, "Access Key")}
+                                                                                    className="p-4 text-[#4B5563] hover:text-emerald-400 transition-all"
+                                                                                    title="Copy Key"
+                                                                                >
+                                                                                    <FiCopy size={14} />
+                                                                                </button>
+                                                                                <button 
+                                                                                    onClick={() => {
+                                                                                        setVisiblePasswords(prev => ({
+                                                                                            ...prev,
+                                                                                            [`${team._id}-${mIdx}`]: !prev[`${team._id}-${mIdx}`]
+                                                                                        }));
+                                                                                    }} 
+                                                                                    className="p-4 text-[#4B5563] hover:text-[#7C3AED] transition-all"
+                                                                                >
+                                                                                    {passVisible ? <FiEyeOff size={14} /> : <FiEye size={14} />}
+                                                                                </button>
+                                                                            </div>
+                                                                        </div>
+                                                                    </td>
+                                                                </tr>
+                                                            );
+                                                        })}
+                                                    </React.Fragment>
+                                                ))
                                             )}
                                         </tbody>
                                     </table>
                                 </div>
                             </Card>
-                        </div>
-                    ) : (
-                        <Card className="p-[48px] text-center border-emerald-500/20 bg-emerald-500/5">
-                            <div className="w-[80px] h-[80px] bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-[24px]">
-                                <FiCheckCircle className="text-emerald-500" size={40} />
-                            </div>
-                            <h3 className="text-[24px] font-semibold text-[#F9FAFB] mb-[8px]">Team Successfully Provisioned</h3>
-                            <p className="text-[#9CA3AF] mb-[32px]">Direct the team to use the following signature for all deployments:</p>
-                            
-                            <div className="bg-[#0B0F14] border border-[#1F2937] p-[24px] rounded-[16px] mb-[32px]">
-                                <span className="text-[12px] font-medium text-[#7C3AED] uppercase tracking-[0.2em] block mb-[8px]">Primary Deployment ID</span>
-                                <span className="text-[36px] font-mono font-bold text-[#F9FAFB] tracking-tighter">{createdTeamId}</span>
-                            </div>
 
-                            <Button 
-                                variant="secondary"
-                                onClick={() => {
-                                    setCreatedTeamId(null);
-                                    setNewTeam({
-                                        teamName: '',
-                                        members: [
-                                          { name: '', role: 'cto', password: '' },
-                                          { name: '', role: 'cfo', password: '' },
-                                          { name: '', role: 'pm', password: '' }
-                                        ]
-                                    });
-                                }}
-                            >
-                                Register Another Team
-                            </Button>
-                        </Card>
+                            {/* LAST CREATED TEAM DETAILS AT BOTTOM */}
+                            {createdTeamId && (
+                                <Card className="p-[48px] border-emerald-500/20 bg-emerald-500/5 animate-in slide-in-from-bottom-4 duration-500">
+                                    <div className="flex flex-col items-center text-center mb-[32px]">
+                                        <div className="w-[80px] h-[80px] bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-[24px]">
+                                            <FiCheckCircle className="text-emerald-500" size={40} />
+                                        </div>
+                                        <h3 className="text-[24px] font-semibold text-[#F9FAFB] mb-[8px]">Newly Provisioned Unit Details</h3>
+                                        <p className="text-[#9CA3AF]">Current active credentials for the last registered team.</p>
+                                    </div>
+
+                                    {/* Team ID Banner */}
+                                    <div className="bg-[#0B0F14] border border-emerald-500/30 p-[24px] rounded-[12px] mb-[24px] text-center">
+                                        <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-[0.25em] block mb-[8px]">Team ID (shared by all members)</span>
+                                        <span className="text-[40px] font-mono font-bold text-[#F9FAFB] tracking-tighter">{createdTeamId}</span>
+                                        <div className="text-[14px] font-semibold text-white mt-4">{newTeam.teamName}</div>
+                                    </div>
+
+                                    {/* Member Credentials Grid */}
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-[16px] mb-[32px]">
+                                        {newTeam.members.map((member, idx) => (
+                                            <div key={idx} className="bg-[#0B0F14] border border-[#1F2937] rounded-[12px] p-[20px] flex flex-col gap-[12px]">
+                                                <span className="text-[10px] font-bold text-[#7C3AED] uppercase tracking-widest border-b border-[#1F2937] pb-[8px]">{member.role}</span>
+                                                <div>
+                                                    <div className="text-[10px] text-[#9CA3AF] uppercase tracking-widest mb-[4px]">Name</div>
+                                                    <div className="text-[14px] font-semibold text-[#F9FAFB]">{member.name || '—'}</div>
+                                                </div>
+                                                <div className="mt-[4px]">
+                                                    <div className="text-[10px] text-[#9CA3AF] uppercase tracking-widest mb-[4px]">Access Key</div>
+                                                    <div className="text-[14px] font-mono font-bold text-emerald-400 bg-emerald-400/5 px-[8px] py-[4px] rounded border border-emerald-400/20">{member.password}</div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    
+                                    <div className="flex justify-center">
+                                        <Button 
+                                            variant="secondary" 
+                                            onClick={() => {
+                                                setCreatedTeamId(null);
+                                                setNewTeam({
+                                                    teamName: '',
+                                                    domain: '',
+                                                    population: 100,
+                                                    members: [
+                                                        { name: '', role: 'cto', password: '' },
+                                                        { name: '', role: 'cfo', password: '' },
+                                                        { name: '', role: 'pm', password: '' }
+                                                    ]
+                                                });
+                                            }}
+                                            className="px-32"
+                                        >
+                                            Dismiss & Clear Form
+                                        </Button>
+                                    </div>
+                                </Card>
+                            )}
+                        </div>
+                </div>
+            )}
+        </div>
+
+        {/* FULL SCREEN LEADERBOARD OVERLAY */}
+        {isFullScreenLeaderboard && (
+            <div className="fixed inset-0 z-[9999] bg-[#030712] p-24 md:p-48 flex flex-col animate-in fade-in duration-500 overflow-hidden">
+                {/* Decorative Grid Background */}
+                <div className="absolute inset-0 opacity-[0.03] pointer-events-none" 
+                     style={{ backgroundImage: 'linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
+                
+                <div className="absolute top-24 right-24 z-10">
+                    <button 
+                        onClick={() => { setIsFullScreenLeaderboard(false); setFilteredRound(null); }}
+                        className="w-48 h-48 bg-white/5 hover:bg-red-500/20 text-white/50 hover:text-red-500 rounded-full flex items-center justify-center transition-all border border-white/10 hover:border-red-500/30 shadow-xl"
+                    >
+                        <FiX size={24} />
+                    </button>
+                </div>
+                
+                {/* Header removed as per user request for clean full-screen view */}
+
+                <div className="flex-1 overflow-y-auto hidden-scrollbar relative z-10">
+                    {leaderboardMode === 'standard' ? (
+                        <Leaderboard isFullScreen={true} filterYear={filteredRound} />
+                    ) : (
+                        <FunLeaderboard isFullScreen={true} filterRound={filteredRound} />
                     )}
                 </div>
 
-            )}
-        </div>
+            </div>
+        )}
       </main>
     </div>
   );

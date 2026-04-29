@@ -10,7 +10,7 @@ const gameSettingsSchema = new mongoose.Schema({
     type: Number,
     default: 0, // Year 0 = Round 1
     min: 0,
-    max: 6
+    max: 10
   },
   isRoundActive: {
     type: Boolean,
@@ -30,6 +30,10 @@ const gameSettingsSchema = new mongoose.Schema({
   },
   roundStartedAt: {
     type: Date,
+    default: null
+  },
+  activeFunQuestionId: {
+    type: String,
     default: null
   }
 }, { timestamps: true });

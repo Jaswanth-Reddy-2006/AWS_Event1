@@ -49,10 +49,10 @@ let roundAutoCloseTimer = null;
 
 router.post('/settings', verifyToken, verifyAdmin, async (req, res) => {
   try {
-    const { currentRound, isRoundActive, resetRoundData } = req.body;
+    const { currentRound, isRoundActive, resetRoundData, activeFunQuestionId } = req.body;
 
     // Build update object
-    const updateFields = { currentRound, isRoundActive, lastUpdated: new Date() };
+    const updateFields = { currentRound, isRoundActive, activeFunQuestionId, lastUpdated: new Date() };
 
     // When starting a round, record the start time for timer enforcement
     if (isRoundActive) {
@@ -215,7 +215,7 @@ router.get('/questions', verifyToken, verifyAdmin, async (req, res) => {
 
 router.post('/questions', verifyToken, verifyAdmin, async (req, res) => {
   try {
-    const { year, role, question, options, correctAnswer, scoringRubric, type, scenario, acceptableRange } = req.body;
+    const { year, role, question, options, correctAnswer, scoringRubric, type, scenario, acceptableRange, assetUrl } = req.body;
     const questionId = `Q-${year}-${role}-${Date.now()}`;
     const newQuestion = new Question({
       questionId,
@@ -225,6 +225,7 @@ router.post('/questions', verifyToken, verifyAdmin, async (req, res) => {
       options,
       correctAnswer,
       type: type || 'mcq',
+      assetUrl,
       scenario: scenario || 'AWS Operational Event',
       scoringRubric: scoringRubric || { full: 10, partial: 0, incorrect: 0 },
       acceptableRange: acceptableRange
@@ -405,6 +406,123 @@ router.post('/session-recovery', verifyToken, verifyAdmin, async (req, res) => {
     }
 
     res.status(200).json({ success: true, message: 'No recovery needed — player has not been disqualified or submitted.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/admin/activate-fun-question
+ */
+router.post('/activate-fun-question', verifyToken, verifyAdmin, async (req, res) => {
+  try {
+    const { questionId } = req.body;
+    if (!questionId) return res.status(400).json({ error: 'Question ID required' });
+
+    const settings = await GameSettings.findOneAndUpdate(
+      { id: 'global_settings' },
+      { activeFunQuestionId: questionId, lastUpdated: new Date() },
+      { new: true }
+    );
+
+    if (isRedisReady()) {
+      await redisClient.del('global:settings');
+    }
+
+    res.status(200).json({ success: true, activeFunQuestionId: settings.activeFunQuestionId });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/admin/active-question-stats
+ */
+router.get('/active-question-stats', verifyToken, verifyAdmin, async (req, res) => {
+  try {
+    const settings = await GameSettings.findOne({ id: 'global_settings' });
+    const qId = settings?.activeFunQuestionId;
+    const year = settings?.currentRound;
+
+    if (!qId || year < 5) {
+      const totalTeams = await Team.countDocuments({ teamId: { $ne: 'ADMIN-EVENT-2026' } });
+      return res.json({ answeredCount: 0, totalTeams });
+    }
+
+    const Submission = require('../models/Submission');
+    const answeredCount = await Submission.countDocuments({
+      year,
+      [`scores.questionScores.${qId}`]: { $exists: true }
+    });
+
+    const totalTeams = await Team.countDocuments({ teamId: { $ne: 'ADMIN-EVENT-2026' } });
+
+    res.status(200).json({ answeredCount, totalTeams });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * GET /api/admin/round-stats
+ * Comprehensive stats for the current round completion
+ */
+router.get('/round-stats', verifyToken, verifyAdmin, async (req, res) => {
+  try {
+    const settings = await GameSettings.findOne({ id: 'global_settings' });
+    const year = settings?.currentRound || 0;
+    const yearKey = `year${year}`;
+
+    const teams = await Team.find({ teamId: { $ne: 'ADMIN-EVENT-2026' } });
+    const totalTeams = teams.length;
+    let totalParticipants = 0;
+    let onlinePeople = 0;
+    
+    let ctoCompleted = 0;
+    let cfoCompleted = 0;
+    let pmCompleted = 0;
+    let teamsFullyCompleted = 0;
+
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+
+    teams.forEach(team => {
+      totalParticipants += (team.members?.length || 0);
+      
+      // Track online status (any member logged in last 5 mins)
+      const isOnline = team.members?.some(m => m.lastLogin && new Date(m.lastLogin) > fiveMinutesAgo);
+      if (isOnline) onlinePeople++;
+
+      const yd = team.gameState?.[yearKey];
+      if (yd?.answers) {
+        const ctoDone = yd.answers.cto && Object.keys(yd.answers.cto).length > 0;
+        const cfoDone = yd.answers.cfo && Object.keys(yd.answers.cfo).length > 0;
+        const pmDone = yd.answers.pm && Object.keys(yd.answers.pm).length > 0;
+        const funDone = yd.answers.fun && Object.keys(yd.answers.fun).length > 0;
+        
+        if (ctoDone) ctoCompleted++;
+        if (cfoDone) cfoCompleted++;
+        if (pmDone) pmCompleted++;
+        if (funDone) {
+            ctoCompleted++; // For fun rounds, we can just increment these or add a new field
+            cfoCompleted++;
+            pmCompleted++;
+        }
+        if ((year < 5 && ctoDone && cfoDone && pmDone) || (year >= 5 && funDone)) teamsFullyCompleted++;
+      }
+    });
+
+    res.json({
+      totalTeams,
+      totalParticipants,
+      onlinePeople,
+      ctoCompleted,
+      cfoCompleted,
+      pmCompleted,
+      teamsFullyCompleted,
+      isRoundActive: settings?.isRoundActive,
+      currentRound: year,
+      activeFunQuestionId: settings?.activeFunQuestionId
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

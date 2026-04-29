@@ -14,8 +14,8 @@ router.get('/:year/:role', verifyToken, async (req, res) => {
     const { year, role } = req.params;
 
     // Validate inputs
-    if (![0, 1, 2, 3, 4, 5, 6].includes(parseInt(year))) {
-      return res.status(400).json({ error: 'Invalid year (0-6)' });
+    if (![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].includes(parseInt(year))) {
+      return res.status(400).json({ error: 'Invalid year (0-10)' });
     }
 
     if (!['cto', 'cfo', 'pm', 'fun'].includes(role)) {

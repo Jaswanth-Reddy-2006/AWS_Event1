@@ -28,7 +28,7 @@ router.post('/:year', verifyToken, async (req, res) => {
     const { answers } = req.body;
     const { teamId, userId, role } = req.user;
 
-    if (![0, 1, 2, 3, 4, 5, 6].includes(parseInt(year))) {
+    if (![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].includes(parseInt(year))) {
       return res.status(400).json({ error: 'Invalid year' });
     }
 
@@ -70,14 +70,25 @@ router.post('/:year', verifyToken, async (req, res) => {
 
     // SPEED-BASED SCORING FOR FUN ROUNDS (Year >= 5)
     if (parseInt(year) >= 5) {
-      // Count how many teams have already submitted 'fun' for this specific year
-      const submissionRank = await Team.countDocuments({
-        [`gameState.year${year}.answers.fun`]: { $exists: true, $ne: {} }
-      });
+      const activeQId = settings.activeFunQuestionId;
+      
+      // Check if the specific active question was answered correctly
+      const isCorrect = activeQId && questionScores[activeQId] > 0;
+      
+      if (isCorrect) {
+        // Count how many teams have already successfully answered THIS specific question
+        const submissionRank = await Submission.countDocuments({
+          year: parseInt(year),
+          [`scores.questionScores.${activeQId}`]: { $gt: 0 }
+        });
 
-      // Award points based on rank: 1st=100, 2nd=95, 3rd=90, etc.
-      roleScore = Math.max(0, 100 - (submissionRank * 5));
-      console.log(`[FUN ROUND] Team ${teamId} rank ${submissionRank + 1} awarded ${roleScore} pts`);
+        // Award points based on rank: 1st=1000, 2nd=950, 3rd=900, etc.
+        roleScore = Math.max(0, 1000 - (submissionRank * 50));
+        console.log(`[FUN ROUND] Team ${teamId} correctly answered Q:${activeQId} at rank ${submissionRank + 1}. Awarded ${roleScore} pts`);
+      } else {
+        roleScore = 0;
+        console.log(`[FUN ROUND] Team ${teamId} answered incorrectly. 0 pts.`);
+      }
     }
     
     // Create submission record

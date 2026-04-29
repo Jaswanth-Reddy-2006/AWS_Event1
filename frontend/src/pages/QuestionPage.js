@@ -388,6 +388,22 @@ const QuestionPage = () => {
           </div>
         );
 
+      case 'text':
+        return (
+          <div className="max-w-[600px] space-y-16">
+            <div className="relative group">
+                <input
+                    type="text"
+                    value={answers[currentQuestion.questionId] || ''}
+                    onChange={(e) => setAnswerInternal(currentQuestion.questionId, e.target.value)}
+                    className="w-full bg-[#111827] border-2 border-[#1F2937] rounded-[20px] py-[24px] px-[32px] text-[24px] font-bold text-[#F9FAFB] focus:border-[#7C3AED] outline-none transition-all focus:shadow-[0_0_30px_rgba(124,58,237,0.1)]"
+                    placeholder="Enter response here..."
+                />
+            </div>
+            <p className="text-[10px] text-[#9CA3AF] uppercase tracking-widest font-bold px-8 opacity-60 italic">Note: Tactical response is case-insensitive.</p>
+          </div>
+        );
+
       default:
         return <p className="text-[#9CA3AF]">Scenario data corrupted. Please contact command center.</p>;
     }
@@ -543,6 +559,24 @@ const QuestionPage = () => {
                         </div>
                         <div className="h-[1px] flex-1 bg-gradient-to-r from-[#7C3AED]/30 to-transparent"></div>
                     </div>
+                    {questions[currentIndex].assetUrl && (
+                        <div className="w-full max-h-[400px] overflow-hidden rounded-[24px] border border-[#1F2937] bg-[#030712] flex items-center justify-center group relative">
+                            {questions[currentIndex].assetUrl.includes('video') || questions[currentIndex].assetUrl.endsWith('.mp4') ? (
+                                <video 
+                                    src={questions[currentIndex].assetUrl} 
+                                    controls 
+                                    className="max-w-full max-h-[400px] object-contain"
+                                />
+                            ) : (
+                                <img 
+                                    src={questions[currentIndex].assetUrl} 
+                                    alt="Tactical Intelligence" 
+                                    className="max-w-full max-h-[400px] object-contain transition-transform duration-700 group-hover:scale-105"
+                                />
+                            )}
+                            <div className="absolute inset-0 bg-gradient-to-t from-[#070B14]/60 to-transparent pointer-events-none"></div>
+                        </div>
+                    )}
                     <h3 className="text-[32px] md:text-[40px] font-bold text-[#F9FAFB] leading-[1.2] tracking-tight">
                         {questions[currentIndex].question}
                     </h3>

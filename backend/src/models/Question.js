@@ -10,7 +10,7 @@ const questionSchema = new mongoose.Schema({
   year: {
     type: Number,
     required: true,
-    enum: [0, 1, 2, 3, 4, 5, 6],
+    enum: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
     index: true
   },
   role: {
@@ -23,7 +23,11 @@ const questionSchema = new mongoose.Schema({
   type: {
     type: String,
     required: true,
-    enum: ['mcq', 'numerical', 'range', 'multi-select', 'truefalse', 'rating', 'shorttext']
+    enum: ['mcq', 'numerical', 'range', 'multi-select', 'truefalse', 'rating', 'shorttext', 'text']
+  },
+  assetUrl: {
+    type: String,
+    default: null
   },
   scenario: {
     type: String,

@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { leaderboardAPI } from '../utils/api';
-import { FiTrendingUp, FiActivity, FiUsers, FiAward, FiZap, FiStar } from 'react-icons/fi';
+import { FiTrendingUp, FiActivity, FiUsers, FiAward, FiZap, FiStar, FiClock, FiTarget } from 'react-icons/fi';
 import Card from './Card';
 
-const FunLeaderboard = () => {
+const FunLeaderboard = ({ isFullScreen = false, filterRound = null }) => {
   const [leaderboard, setLeaderboard] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -12,7 +12,18 @@ const FunLeaderboard = () => {
     const loadLeaderboard = async () => {
       try {
         const response = await leaderboardAPI.getFun();
-        setLeaderboard(response.data.leaderboard);
+        let newData = response.data.leaderboard;
+
+        if (filterRound !== null) {
+          newData = [...newData].sort((a, b) => {
+            const pA = a[`f${filterRound}`] || 0;
+            const pB = b[`f${filterRound}`] || 0;
+            if (pB !== pA) return pB - pA;
+            return 0;
+          });
+        }
+
+        setLeaderboard(newData);
         setLoading(false);
       } catch (err) {
         setError('Operational Telemetry Interrupted');
@@ -23,7 +34,7 @@ const FunLeaderboard = () => {
     loadLeaderboard();
     const interval = setInterval(loadLeaderboard, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [filterRound]);
 
   if (loading) return (
     <div className="py-64 flex flex-col items-center justify-center">
@@ -32,8 +43,30 @@ const FunLeaderboard = () => {
     </div>
   );
 
+  // Determine active fun rounds
+  const activeRounds = [];
+  for (let i = 1; i <= 10; i++) {
+    if (leaderboard.some(t => t[`f${i}`] > 0)) {
+      activeRounds.push(i);
+    }
+  }
+
+  const formatCurrency = (val) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      maximumFractionDigits: 0
+    }).format(val);
+  };
+
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
   return (
-    <div className="w-full animate-in fade-in duration-700">
+    <div className={`w-full animate-in fade-in duration-700 ${isFullScreen ? 'h-full flex flex-col' : ''}`}>
       {error && (
         <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-24 py-16 rounded-xl mb-32 font-medium flex items-center space-x-12">
           <FiActivity size={20} />
@@ -41,69 +74,146 @@ const FunLeaderboard = () => {
         </div>
       )}
 
-      <Card className="p-0 overflow-hidden border border-yellow-500/20 bg-brand-surface shadow-premium flex flex-col">
+      {!isFullScreen && (
+        <div className="flex items-center gap-12 mb-16 px-4">
+           <FiStar className="text-yellow-500" size={20} />
+           <h3 className="text-18 font-bold text-white uppercase tracking-wider">
+             {filterRound !== null ? `Fun Round ${filterRound} Ranking` : 'Global Experimental Ranking'}
+           </h3>
+        </div>
+      )}
+
+      <Card className={`p-0 overflow-hidden border border-yellow-500/20 bg-[#0B0F14] shadow-premium flex flex-col ${isFullScreen ? 'flex-1' : ''}`}>
         <div className="overflow-x-auto overflow-y-auto flex-1 hidden-scrollbar relative">
           <table className="w-full text-left border-collapse">
-            <thead className="sticky top-0 z-10 bg-[#0F172A] shadow-md">
-              <tr className="border-b border-brand-border">
-                <th className="px-[24px] py-[20px] border-b border-brand-border">
+            <thead className="sticky top-0 z-10 bg-[#0F172A] shadow-md border-b border-[#1F2937]">
+              <tr>
+                <th className="px-[24px] py-[20px]">
                   <div className="flex items-center space-x-4">
                     <FiAward className="text-yellow-500" size={14} />
                     <span className="text-brand-text-muted font-semibold uppercase tracking-widest text-10 whitespace-nowrap">Rank</span>
                   </div>
                 </th>
-                <th className="px-[24px] py-[20px] border-b border-brand-border">
+                <th className="px-[24px] py-[20px]">
                   <div className="flex items-center space-x-4">
                     <FiUsers className="text-yellow-500" size={14} />
                     <span className="text-brand-text-muted font-semibold uppercase tracking-widest text-10 whitespace-nowrap">Unit Identity</span>
                   </div>
                 </th>
-                {[1, 2, 3, 4, 5].map(f => (
-                  <th key={f} className="px-[24px] py-[20px] border-b border-brand-border text-center">
-                     <span className="text-brand-text-muted font-semibold uppercase tracking-widest text-10 whitespace-nowrap">Funderon {f}</span>
+                
+                {filterRound === null ? (
+                  <>
+                    <th className="px-[24px] py-[20px]">
+                      <div className="flex items-center space-x-4">
+                        <FiTrendingUp className="text-emerald-500" size={14} />
+                        <span className="text-brand-text-muted font-semibold uppercase tracking-widest text-10 whitespace-nowrap">Total Valuation</span>
+                      </div>
+                    </th>
+                    <th className="px-[24px] py-[20px]">
+                      <div className="flex items-center space-x-4">
+                        <FiTarget className="text-[#7C3AED]" size={14} />
+                        <span className="text-brand-text-muted font-semibold uppercase tracking-widest text-10 whitespace-nowrap">Efficiency</span>
+                      </div>
+                    </th>
+                    <th className="px-[24px] py-[20px]">
+                      <div className="flex items-center space-x-4">
+                        <FiClock className="text-sky-500" size={14} />
+                        <span className="text-brand-text-muted font-semibold uppercase tracking-widest text-10 whitespace-nowrap">Time</span>
+                      </div>
+                    </th>
+                    {activeRounds.map(f => (
+                      <th key={f} className="px-[24px] py-[20px] text-center bg-white/[0.02]">
+                         <span className="text-brand-text-muted font-semibold uppercase tracking-widest text-10 whitespace-nowrap">Fun Round {f}</span>
+                      </th>
+                    ))}
+                    <th className="px-[24px] py-[20px] text-right bg-yellow-500/5">
+                      <div className="flex items-center justify-end space-x-4">
+                        <FiStar className="text-yellow-500" size={14} />
+                        <span className="text-brand-text-muted font-semibold uppercase tracking-widest text-10 whitespace-nowrap">Fun Score</span>
+                      </div>
+                    </th>
+                  </>
+                ) : (
+                  <th className="px-[24px] py-[20px] text-right bg-yellow-500/5">
+                    <div className="flex items-center justify-end space-x-4">
+                      <FiStar className="text-yellow-500" size={14} />
+                      <span className="text-brand-text-muted font-semibold uppercase tracking-widest text-10 whitespace-nowrap">Round Points</span>
+                    </div>
                   </th>
-                ))}
-                <th className="px-[24px] py-[20px] border-b border-brand-border text-right">
-                  <div className="flex items-center justify-end space-x-4">
-                    <FiStar className="text-yellow-500" size={14} />
-                    <span className="text-brand-text-muted font-semibold uppercase tracking-widest text-10 whitespace-nowrap">Fun Points</span>
-                  </div>
-                </th>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-brand-border">
               {leaderboard.map((team, idx) => (
-                <tr key={team.teamId} className="group transition-colors hover:bg-white/[0.02]">
+                <tr key={team.teamId} className={`group transition-all hover:bg-white/[0.04] ${isFullScreen ? 'h-[90px]' : ''}`}>
                   <td className="px-[24px] py-[24px]">
                      <div className="flex items-center space-x-12">
-                       <span className={`text-16 font-bold font-mono ${
+                       <span className={`font-bold font-mono ${
+                         isFullScreen ? 'text-32' : 'text-16'
+                       } ${
                          idx === 0 ? 'text-yellow-500' : 
                          idx === 1 ? 'text-gray-400' : 
                          idx === 2 ? 'text-amber-600' : 
                          'text-brand-text-muted opacity-50'
                        }`}>
-                          {idx + 1}
+                          {(idx + 1).toString().padStart(2, '0')}
                        </span>
                      </div>
                   </td>
                   <td className="px-[24px] py-[24px] whitespace-nowrap">
-                     <span className="text-14 font-semibold text-brand-text-primary group-hover:text-yellow-500 transition-colors">{team.teamName}</span>
+                     <div className="flex flex-col">
+                        <span className={`font-black text-brand-text-primary group-hover:text-yellow-500 transition-colors uppercase tracking-tight ${
+                          isFullScreen ? 'text-28' : 'text-14'
+                        }`}>{team.teamName}</span>
+                        <span className="text-[10px] font-mono text-brand-text-muted opacity-50 uppercase">{team.teamId}</span>
+                     </div>
                   </td>
-                  {[1, 2, 3, 4, 5].map(f => {
-                    const points = team[`f${f}`];
-                    return (
-                      <td key={f} className="px-[24px] py-[24px] text-center">
-                        <span className={`font-mono text-14 ${points > 0 ? 'text-yellow-400' : 'text-brand-text-muted opacity-40'}`}>
-                            {points > 0 ? `${points} pts` : '0 pts'}
+
+                  {filterRound === null ? (
+                    <>
+                      <td className="px-[24px] py-[24px]">
+                         <span className={`font-mono font-bold text-emerald-400 ${isFullScreen ? 'text-24' : 'text-14'}`}>
+                            {formatCurrency(team.totalProfit || 0)}
+                         </span>
+                      </td>
+                      <td className="px-[24px] py-[24px]">
+                         <div className="flex items-center gap-8">
+                            <div className="flex-1 h-4 bg-white/5 rounded-full overflow-hidden max-w-[80px]">
+                                <div className="h-full bg-[#7C3AED]" style={{ width: `${team.avgEfficiency || 0}%` }} />
+                            </div>
+                            <span className={`font-mono font-bold text-[#A78BFA] ${isFullScreen ? 'text-20' : 'text-13'}`}>
+                                {Math.round(team.avgEfficiency || 0)}%
+                            </span>
+                         </div>
+                      </td>
+                      <td className="px-[24px] py-[24px]">
+                         <span className={`font-mono font-bold text-sky-400 ${isFullScreen ? 'text-20' : 'text-13'}`}>
+                            {formatTime(team.totalTime || 0)}
+                         </span>
+                      </td>
+                      {activeRounds.map(f => {
+                        const points = team[`f${f}`];
+                        return (
+                          <td key={f} className="px-[24px] py-[24px] text-center bg-white/[0.01]">
+                            <span className={`font-mono font-black ${isFullScreen ? 'text-22' : 'text-14'} ${points > 0 ? 'text-yellow-400' : 'text-white/10'}`}>
+                                {points > 0 ? points : '--'}
+                            </span>
+                          </td>
+                        );
+                      })}
+                      <td className="px-[24px] py-[24px] text-right bg-yellow-500/5">
+                        <span className={`font-black font-mono tracking-tighter ${isFullScreen ? 'text-48' : 'text-20'} ${idx === 0 ? 'text-yellow-500 shadow-glow-sm' : 'text-white'}`}>
+                          {team.funPoints || 0}
                         </span>
                       </td>
-                    );
-                  })}
-                  <td className="px-[24px] py-[24px] text-right">
-                    <span className={`text-18 font-bold font-mono tracking-tight ${idx === 0 ? 'text-yellow-500' : 'text-brand-text-primary'}`}>
-                      {team.funPoints || 0} pts
-                    </span>
-                  </td>
+                    </>
+                  ) : (
+                    <td className="px-[24px] py-[24px] text-right bg-yellow-500/5">
+                      <span className={`font-black font-mono tracking-tighter ${isFullScreen ? 'text-48' : 'text-20'} ${idx === 0 ? 'text-yellow-500 shadow-glow-sm' : 'text-white'}`}>
+                        {team[`f${filterRound}`] || 0}
+                      </span>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

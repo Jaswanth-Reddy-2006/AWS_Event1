@@ -42,7 +42,9 @@ export const submissionsAPI = {
     apiClient.post(`/submissions/${year}`, { answers, timeSpent }),
   get: (teamId, year) => apiClient.get(`/submissions/${teamId}/${year}`),
   disqualify: (year, reason) => apiClient.post(`/submissions/disqualify/${year}`, { reason }),
-  reportScreenOut: () => apiClient.post('/submissions/report-screen-out')
+  reportScreenOut: () => apiClient.post('/submissions/report-screen-out'),
+  funPresence: () => apiClient.post('/submissions/fun-presence'),
+  funLeave: () => apiClient.post('/submissions/fun-leave')
 };
 
 export const leaderboardAPI = {

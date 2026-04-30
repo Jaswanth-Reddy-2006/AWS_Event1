@@ -47,8 +47,8 @@ router.get('/', async (req, res) => {
       let anyTimeSpent = false;
       const roundDetails = {};
       
-      // Support all 11 rounds (Year 0-10)
-      for (let i = 0; i <= 10; i++) {
+      // Support standard rounds (Year 0-4)
+      for (let i = 0; i <= 4; i++) {
           const rd = team.gameState?.[`year${i}`];
           if (rd && rd.answers) {
               const roles = ['cto', 'cfo', 'pm'];

@@ -34,6 +34,29 @@ const FunRoundPage = () => {
     resetAnswers();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Presence logic to enforce single participant per team
+  useEffect(() => {
+    let presenceInterval;
+    const holdSlot = async () => {
+      try {
+        await submissionsAPI.funPresence();
+      } catch (err) {
+        if (err.response?.status === 403) {
+          alert('Another team member is already playing the Fun Round.');
+          navigate('/profile');
+        }
+      }
+    };
+    
+    holdSlot();
+    presenceInterval = setInterval(holdSlot, 5000);
+    
+    return () => {
+      clearInterval(presenceInterval);
+      submissionsAPI.funLeave().catch(() => {});
+    };
+  }, [navigate]);
+
   useEffect(() => {
     let interval;
     const poll = async () => {

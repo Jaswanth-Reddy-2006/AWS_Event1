@@ -393,4 +393,54 @@ router.post('/report-screen-out', verifyToken, async (req, res) => {
   }
 });
 
+/**
+ * POST /api/submissions/fun-presence
+ * Ping to hold the fun round slot
+ */
+router.post('/fun-presence', verifyToken, async (req, res) => {
+  try {
+    const { teamId, role } = req.user;
+    const team = await Team.findOne({ teamId });
+    if (!team) return res.status(404).json({ error: 'Team not found' });
+
+    const now = new Date();
+    
+    if (team.funRoundActiveUser && team.funRoundActiveUser.role && team.funRoundActiveUser.role !== role) {
+      // Check if the other user was seen recently (e.g. within last 10 seconds)
+      const lastSeen = team.funRoundActiveUser.lastSeen ? new Date(team.funRoundActiveUser.lastSeen).getTime() : 0;
+      if (now.getTime() - lastSeen < 10000) {
+         return res.status(403).json({ error: 'Another team member is already playing the Fun Round.' });
+      }
+    }
+
+    team.funRoundActiveUser = { role, lastSeen: now };
+    await team.save();
+
+    res.status(200).json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/submissions/fun-leave
+ * Explicitly release the fun round slot
+ */
+router.post('/fun-leave', verifyToken, async (req, res) => {
+  try {
+    const { teamId, role } = req.user;
+    const team = await Team.findOne({ teamId });
+    if (!team) return res.status(404).json({ error: 'Team not found' });
+
+    if (team.funRoundActiveUser && team.funRoundActiveUser.role === role) {
+      team.funRoundActiveUser = null;
+      await team.save();
+    }
+
+    res.status(200).json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

@@ -96,6 +96,10 @@ const teamSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  funRoundActiveUser: {
+    role: String,
+    lastSeen: Date
+  },
   fraudFlags: {
     tabSwitches: { type: Number, default: 0 },
     screenOuts: { type: Number, default: 0 }, // Track fullscreen exits

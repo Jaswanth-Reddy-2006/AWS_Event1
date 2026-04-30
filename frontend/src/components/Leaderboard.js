@@ -52,7 +52,7 @@ const Leaderboard = ({ isFullScreen = false, filterYear = null }) => {
         setTimeout(() => setRankChanges({}), 3000);
 
         const rounds = [];
-        for (let i = 0; i <= 9; i++) {
+        for (let i = 0; i <= 4; i++) {
           if (newData.some(t => (t[`year${i}Points`] || 0) > 0)) rounds.push(i);
         }
         setActiveRounds(rounds);

@@ -2320,26 +2320,6 @@ const AdminDashboard = () => {
                                             required
                                         />
                                     </div>
-                                    <div className="flex flex-col gap-[6px]">
-                                        <label className="text-[11px] font-bold text-[#9CA3AF] uppercase tracking-wider">College</label>
-                                        <input
-                                            type="text"
-                                            placeholder="College name"
-                                            value={newTeam.college || ''}
-                                            onChange={e => setNewTeam({...newTeam, college: e.target.value})}
-                                            className="w-full px-[14px] py-[10px] bg-[#0B0F14] border border-[#1F2937] rounded-[8px] text-[14px] text-[#F9FAFB] focus:border-[#7C3AED] focus:outline-none transition-all"
-                                        />
-                                    </div>
-                                    <div className="flex flex-col gap-[6px]">
-                                        <label className="text-[11px] font-bold text-[#9CA3AF] uppercase tracking-wider">Department</label>
-                                        <input
-                                            type="text"
-                                            placeholder="Department"
-                                            value={newTeam.department || ''}
-                                            onChange={e => setNewTeam({...newTeam, department: e.target.value})}
-                                            className="w-full px-[14px] py-[10px] bg-[#0B0F14] border border-[#1F2937] rounded-[8px] text-[14px] text-[#F9FAFB] focus:border-[#7C3AED] focus:outline-none transition-all"
-                                        />
-                                    </div>
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-[12px]">
@@ -2407,7 +2387,7 @@ const AdminDashboard = () => {
                                 <button
                                     onClick={() => {
                                         setCreatedTeamId(null);
-                                        setNewTeam({ teamName: '', domain: '', college: '', department: '', population: 100, members: [{ name: '', role: 'cto', password: '' }, { name: '', role: 'cfo', password: '' }, { name: '', role: 'pm', password: '' }] });
+                                        setNewTeam({ teamName: '', domain: '', population: 100, members: [{ name: '', role: 'cto', password: '' }, { name: '', role: 'cfo', password: '' }, { name: '', role: 'pm', password: '' }] });
                                     }}
                                     className="text-[12px] text-[#6B7280] hover:text-[#9CA3AF] transition-all"
                                 >
@@ -2481,10 +2461,6 @@ const AdminDashboard = () => {
                                                     </button>
                                                 </div>
                                             </div>
-
-                                            {team.college && (
-                                                <p className="text-[11px] text-[#6B7280] mb-[12px]">{team.college}{team.department ? ` — ${team.department}` : ''}</p>
-                                            )}
 
                                             {/* Members with passwords */}
                                             <div className="flex flex-col gap-[8px]">

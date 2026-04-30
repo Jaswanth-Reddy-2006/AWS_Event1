@@ -121,7 +121,7 @@ const AdminDashboard = () => {
     const isFunActive = settings?.isRoundActive && (settings?.currentRound >= 5);
     if (isFunActive) {
       fetchActiveQuestionStats();
-      interval = setInterval(fetchActiveQuestionStats, 1000);
+      interval = setInterval(fetchActiveQuestionStats, 5000);
     }
     return () => clearInterval(interval);
   }, [settings?.isRoundActive, settings?.activeFunQuestionId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -231,7 +231,7 @@ const AdminDashboard = () => {
       }
     };
     loadAll();
-    const interval = setInterval(loadAll, 3000); // Increased polling for telemetry
+    const interval = setInterval(loadAll, 10000);
     return () => clearInterval(interval);
   }, []);
 
@@ -269,7 +269,7 @@ const AdminDashboard = () => {
         } catch (e) { /* ignore */ }
       };
       fetchSubs();
-      subInterval = setInterval(fetchSubs, 4000);
+      subInterval = setInterval(fetchSubs, 10000);
     } else {
       setRoundSubs(null);
     }

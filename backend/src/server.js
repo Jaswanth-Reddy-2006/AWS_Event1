@@ -33,7 +33,7 @@ const submissionLimiter = rateLimit({
 
 const adminLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 600,
+  max: 3000,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many admin requests. Please slow down.' }

@@ -101,7 +101,10 @@ router.post('/register', verifyToken, verifyAdmin, async (req, res) => {
  */
 router.post('/login', async (req, res) => {
   try {
-    const { teamId, memberName, password, role } = req.body;
+    const teamId = req.body.teamId?.trim();
+    const memberName = req.body.memberName?.trim();
+    const password = req.body.password?.trim();
+    const role = req.body.role;
 
     // Validate input
     if (!teamId || !memberName || !password) {

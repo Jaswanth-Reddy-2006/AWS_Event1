@@ -39,7 +39,12 @@ const LoginPage = () => {
     }
 
     try {
-      const response = await authAPI.login(credentials);
+      const response = await authAPI.login({
+        ...credentials,
+        teamId: credentials.teamId.trim(),
+        memberName: credentials.memberName.trim(),
+        password: credentials.password.trim()
+      });
 
       setAuth({
         token: response.data.token,

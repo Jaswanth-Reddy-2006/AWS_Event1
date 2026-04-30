@@ -164,16 +164,25 @@ const QuestionPage = () => {
       if (settings?.roundStartedAt) {
         const deadline = new Date(settings.roundStartedAt).getTime() + 20 * 60 * 1000;
         const remaining = Math.max(0, Math.round((deadline - Date.now()) / 1000));
+        if (remaining === 0 && !hasLoadedQuestions.current) {
+          navigate('/profile');
+          return;
+        }
         setTimeLeft(remaining);
       } else {
         setTimeLeft(prev => (prev > 0 ? prev - 1 : 0));
       }
     }, 1000);
     return () => clearInterval(timer);
-  }, [submitted]);
+  }, [submitted, navigate]);
+
+  const hasLoadedQuestions = useRef(false);
+  useEffect(() => {
+    if (questions.length > 0) hasLoadedQuestions.current = true;
+  }, [questions.length]);
 
   useEffect(() => {
-    if (timeLeft === 0 && !submitting && !submitted) handleSubmit();
+    if (timeLeft === 0 && !submitting && !submitted && hasLoadedQuestions.current) handleSubmit();
   }, [timeLeft, submitting, submitted, handleSubmit]);
 
   const goToQuestion = (index) => {

@@ -1471,7 +1471,6 @@ const AdminDashboard = () => {
                 const isThisRoundLive = settings?.currentRound === tabYear && settings?.isRoundActive;
                 
 
-
                 const funQs = isFunTab
                   ? questions.filter(q => q.year === tabYear && q.role === 'fun')
                   : [];

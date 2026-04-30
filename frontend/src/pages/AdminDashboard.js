@@ -121,10 +121,10 @@ const AdminDashboard = () => {
     const isFunActive = settings?.isRoundActive && (settings?.currentRound >= 5);
     if (isFunActive) {
       fetchActiveQuestionStats();
-      interval = setInterval(fetchActiveQuestionStats, 2000);
+      interval = setInterval(fetchActiveQuestionStats, 1000);
     }
     return () => clearInterval(interval);
-  }, [activeTab, settings?.isRoundActive, settings?.activeFunQuestionId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [settings?.isRoundActive, settings?.activeFunQuestionId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchActiveQuestionStats = async () => {
     try {

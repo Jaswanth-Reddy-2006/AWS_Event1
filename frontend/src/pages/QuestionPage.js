@@ -153,7 +153,7 @@ const QuestionPage = () => {
 
     if (year && role) {
       validateAndLoad();
-      intervalId = setInterval(validateAndLoad, 5000);
+      intervalId = setInterval(validateAndLoad, 15000);
     }
     return () => { if (intervalId) clearInterval(intervalId); };
   // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -39,7 +39,7 @@ export default function ProfilePage() {
       }
     };
     fetchData();
-    const interval = setInterval(fetchData, 2000);
+    const interval = setInterval(fetchData, 10000);
     return () => clearInterval(interval);
   }, [isLoggedIn, navigate, teamId]);
 

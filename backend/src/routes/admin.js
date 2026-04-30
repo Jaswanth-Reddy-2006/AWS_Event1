@@ -18,7 +18,6 @@ router.get('/settings', verifyToken, async (req, res) => {
     if (isRedisReady()) {
       const cached = await redisClient.get(cacheKey);
       if (cached) {
-        console.log('[Redis Hit] Serving global settings');
         return res.status(200).json(JSON.parse(cached));
       }
     }

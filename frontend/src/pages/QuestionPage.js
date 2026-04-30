@@ -18,6 +18,7 @@ const QuestionPage = () => {
   const [questions, setQuestions] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [timeLeft, setTimeLeft] = useState(1200);
+  const [settingsReady, setSettingsReady] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -124,6 +125,7 @@ const QuestionPage = () => {
         setNextRoundSettings(settings);
 
         if (teamData?.fraudFlags?.screenOuts) setScreenOutCount(teamData.fraudFlags.screenOuts);
+        setSettingsReady(true);
 
         if (!settings.isRoundActive || settings.currentRound !== parseInt(year)) {
           if (!submitted) {
@@ -158,23 +160,19 @@ const QuestionPage = () => {
   }, [year, role, teamId, navigate, questions.length, setCurrentQuestions, submitted, setNextRoundSettings, setTabSwitchWarnings]);
 
   useEffect(() => {
-    if (submitted) return;
+    if (submitted || !settingsReady) return;
     const timer = setInterval(() => {
       const settings = useGameStore.getState().nextRoundSettings;
       if (settings?.roundStartedAt) {
         const deadline = new Date(settings.roundStartedAt).getTime() + 20 * 60 * 1000;
         const remaining = Math.max(0, Math.round((deadline - Date.now()) / 1000));
-        if (remaining === 0 && !hasLoadedQuestions.current) {
-          navigate('/profile');
-          return;
-        }
         setTimeLeft(remaining);
       } else {
         setTimeLeft(prev => (prev > 0 ? prev - 1 : 0));
       }
     }, 1000);
     return () => clearInterval(timer);
-  }, [submitted, navigate]);
+  }, [submitted, settingsReady]);
 
   const hasLoadedQuestions = useRef(false);
   useEffect(() => {
@@ -182,8 +180,8 @@ const QuestionPage = () => {
   }, [questions.length]);
 
   useEffect(() => {
-    if (timeLeft === 0 && !submitting && !submitted && hasLoadedQuestions.current) handleSubmit();
-  }, [timeLeft, submitting, submitted, handleSubmit]);
+    if (timeLeft === 0 && !submitting && !submitted && settingsReady && hasLoadedQuestions.current) handleSubmit();
+  }, [timeLeft, submitting, submitted, settingsReady, handleSubmit]);
 
   const goToQuestion = (index) => {
     if (index === currentIndex) return;

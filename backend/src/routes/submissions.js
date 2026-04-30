@@ -39,10 +39,10 @@ router.post('/:year', verifyToken, async (req, res) => {
       return res.status(403).json({ error: 'Round is not currently active. Submission rejected.' });
     }
 
-    // Check 30-minute timer enforcement
+    // Check 20-minute timer enforcement
     if (settings.roundStartedAt) {
       const elapsed = (Date.now() - new Date(settings.roundStartedAt).getTime()) / 1000 / 60;
-      if (elapsed > 30) {
+      if (elapsed > 20) {
         return res.status(403).json({ error: 'Round time limit exceeded. Submission rejected.' });
       }
     }

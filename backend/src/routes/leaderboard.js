@@ -26,11 +26,6 @@ router.get('/', async (req, res) => {
       .sort({ 'finalScore.cumulativeProfit': -1, createdAt: 1 })
       .limit(100);
 
-    // Flush stale cache on restart to ensure new logic applies
-    if (isRedisReady()) {
-        redisClient.del('global:leaderboard').catch(e => console.error('Cache flush error:', e));
-    }
-
     const Question = require('../models/Question');
     const questions = await Question.find({}, 'year role scoringRubric');
     const maxScores = {}; // { year_role: maxScore }

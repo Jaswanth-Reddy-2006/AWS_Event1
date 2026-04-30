@@ -115,6 +115,7 @@ const AdminDashboard = () => {
   const [broadcastHistory, setBroadcastHistory] = useState([]);
   const [showBroadcastPanel, setShowBroadcastPanel] = useState(false);
   const [roundSubs, setRoundSubs] = useState(null);
+  const [recoveringRole, setRecoveringRole] = useState(null);
 
   useEffect(() => {
     let interval;
@@ -347,6 +348,34 @@ const AdminDashboard = () => {
       setMsg({ type: 'success', text: `${targetYear >= 5 ? `Fun Round ${targetYear - 4}` : `Round ${targetYear + 1}`} is now ${start ? 'LIVE — 20 min timer started' : 'STANDBY'}.` });
     } catch (err) {
       setMsg({ type: 'error', text: 'Operational transition failed.' });
+    }
+  };
+
+  const handleEndRound = async () => {
+    try {
+      const res = await adminAPI.updateSettings({
+        currentRound: settings.currentRound,
+        isRoundActive: false
+      });
+      setSettings(res.data);
+      setMsg({ type: 'success', text: `Round ${settings.currentRound >= 5 ? `Fun Round ${settings.currentRound - 4}` : settings.currentRound + 1} ended. All scores preserved.` });
+    } catch (err) {
+      setMsg({ type: 'error', text: 'Failed to end round.' });
+    }
+  };
+
+  const handleRecoverSession = async (teamId, role, year) => {
+    const key = `${teamId}-${role}-${year}`;
+    setRecoveringRole(key);
+    try {
+      const res = await adminAPI.recoverSession(teamId, role, year);
+      setMsg({ type: 'success', text: res.data.message });
+      const tms = await adminAPI.getTeams();
+      setTeams(tms.data.teams || []);
+    } catch (err) {
+      setMsg({ type: 'error', text: err.response?.data?.error || 'Recovery failed.' });
+    } finally {
+      setRecoveringRole(null);
     }
   };
 
@@ -689,14 +718,20 @@ const AdminDashboard = () => {
                             {Math.floor(roundTimeLeft / 60)}:{String(roundTimeLeft % 60).padStart(2, '0')}
                         </span>
                     </div>
-                    {roundSubs?.allTeamsComplete && (
-                        <button
-                            onClick={() => handleStartStopRound(false, settings.currentRound)}
-                            className="px-[16px] py-[8px] bg-red-500 hover:bg-red-600 text-white text-[12px] font-bold uppercase tracking-wider rounded-[8px] transition-all flex items-center gap-[6px]"
-                        >
-                            <FiX size={14} /> Close Round Early
-                        </button>
-                    )}
+                    <button
+                        onClick={handleEndRound}
+                        className={`px-[16px] py-[8px] text-[12px] font-bold uppercase tracking-wider rounded-[8px] transition-all flex items-center gap-[6px] ${
+                            roundSubs?.allTeamsComplete
+                            ? 'bg-emerald-500 hover:bg-emerald-600 text-white animate-pulse shadow-[0_0_20px_rgba(16,185,129,0.4)]'
+                            : 'bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-white border border-red-500/20'
+                        }`}
+                    >
+                        {roundSubs?.allTeamsComplete ? (
+                            <><FiCheckCircle size={14} /> All Done — End Round</>
+                        ) : (
+                            <><FiX size={14} /> End Round Early</>
+                        )}
+                    </button>
                 </div>
 
                 {/* Submission stats row */}
@@ -1337,11 +1372,26 @@ const AdminDashboard = () => {
                                                                         <div className="w-24 flex-shrink-0">
                                                                             <span className="text-[12px] font-bold text-[#7C3AED] uppercase border border-[#7C3AED]/20 bg-[#7C3AED]/10 px-[10px] py-[4px] rounded-[6px]">{role}</span>
                                                                         </div>
-                                                                        <div className="flex-1">
+                                                                        <div className="flex-1 flex items-center gap-[8px]">
                                                                             {hasAnswers ? (
-                                                                                <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest px-[8px] py-[4px] border border-emerald-400/20 bg-emerald-400/10 rounded">
-                                                                                    Submitted
-                                                                                </span>
+                                                                                roleAnswers?.disqualified ? (
+                                                                                    <>
+                                                                                        <span className="text-[10px] font-bold text-red-400 uppercase tracking-widest px-[8px] py-[4px] border border-red-400/20 bg-red-400/10 rounded">
+                                                                                            Disqualified
+                                                                                        </span>
+                                                                                        <button
+                                                                                            disabled={recoveringRole === `${selectedTeam.teamId}-${role}-${y}`}
+                                                                                            onClick={(e) => { e.stopPropagation(); handleRecoverSession(selectedTeam.teamId, role, y); }}
+                                                                                            className="text-[10px] font-bold text-yellow-500 uppercase tracking-widest px-[10px] py-[4px] border border-yellow-500/20 bg-yellow-500/10 rounded hover:bg-yellow-500/20 transition-all disabled:opacity-50"
+                                                                                        >
+                                                                                            {recoveringRole === `${selectedTeam.teamId}-${role}-${y}` ? 'Recovering...' : 'Recover'}
+                                                                                        </button>
+                                                                                    </>
+                                                                                ) : (
+                                                                                    <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest px-[8px] py-[4px] border border-emerald-400/20 bg-emerald-400/10 rounded">
+                                                                                        Submitted
+                                                                                    </span>
+                                                                                )
                                                                             ) : (
                                                                                 <span className="text-[10px] font-bold text-[#4B5563] uppercase tracking-widest px-[8px] py-[4px] border border-[#1F2937] bg-[#0B0F14] rounded">
                                                                                     Not Submitted

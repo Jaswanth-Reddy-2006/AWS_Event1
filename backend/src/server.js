@@ -25,7 +25,7 @@ const loginLimiter = rateLimit({
 
 const submissionLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 5,
+  max: 60,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many submissions. Please wait before submitting again.' }

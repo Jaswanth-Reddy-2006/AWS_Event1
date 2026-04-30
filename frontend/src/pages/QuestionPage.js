@@ -4,7 +4,7 @@ import LockdownMode from '../components/LockdownMode';
 import { useGameStore } from '../utils/store';
 import { questionsAPI, submissionsAPI, adminAPI, authAPI } from '../utils/api';
 import {
-  FiClock, FiAlertCircle, FiChevronRight, FiChevronLeft,
+  FiAlertCircle, FiChevronRight, FiChevronLeft,
   FiCheckCircle, FiLoader, FiActivity, FiLock, FiSend,
   FiMaximize, FiLogOut, FiBookOpen, FiX
 } from 'react-icons/fi';
@@ -159,7 +159,16 @@ const QuestionPage = () => {
 
   useEffect(() => {
     if (submitted) return;
-    const timer = setInterval(() => setTimeLeft(prev => (prev > 0 ? prev - 1 : 0)), 1000);
+    const timer = setInterval(() => {
+      const settings = useGameStore.getState().nextRoundSettings;
+      if (settings?.roundStartedAt) {
+        const deadline = new Date(settings.roundStartedAt).getTime() + 20 * 60 * 1000;
+        const remaining = Math.max(0, Math.round((deadline - Date.now()) / 1000));
+        setTimeLeft(remaining);
+      } else {
+        setTimeLeft(prev => (prev > 0 ? prev - 1 : 0));
+      }
+    }, 1000);
     return () => clearInterval(timer);
   }, [submitted]);
 
@@ -184,10 +193,7 @@ const QuestionPage = () => {
 
   const currentQuestion = questions[currentIndex];
   const isFunRound = parseInt(year) >= 5;
-  const minutes = Math.floor(timeLeft / 60);
-  const seconds = String(timeLeft % 60).padStart(2, '0');
-  const isLowTime = timeLeft < 300;
-  const isCriticalTime = timeLeft < 60;
+
   const answeredCount = questions.filter(q => answers[q.questionId] !== undefined && answers[q.questionId] !== '').length;
 
   const renderOptions = () => {
@@ -515,7 +521,6 @@ const QuestionPage = () => {
         </div>
       )}
 
-      {/* ── Top Bar ── */}
       <div className="h-[52px] border-b border-[#1F2937] bg-[#0B0F14] flex items-center justify-between px-[20px] shrink-0 z-50">
         {!isFullscreen ? (
           <>
@@ -550,22 +555,6 @@ const QuestionPage = () => {
                 {showHandbook ? 'Close Handbook' : 'Open Handbook'}
               </button>
 
-              <div
-                className="flex items-center gap-[8px] px-[12px] py-[5px] rounded-[8px] border transition-all"
-                style={{
-                  background: isCriticalTime ? 'rgba(239,68,68,0.12)' : isLowTime ? 'rgba(245,158,11,0.08)' : '#111827',
-                  borderColor: isCriticalTime ? 'rgba(239,68,68,0.3)' : isLowTime ? 'rgba(245,158,11,0.2)' : '#1F2937',
-                }}
-              >
-                <FiClock size={13} style={{ color: isCriticalTime ? '#ef4444' : isLowTime ? '#f59e0b' : '#7C3AED' }} />
-                <span
-                  className="text-[15px] font-bold tabular-nums"
-                  style={{ color: isCriticalTime ? '#ef4444' : isLowTime ? '#f59e0b' : '#F9FAFB' }}
-                >
-                  {minutes}:{seconds}
-                </span>
-              </div>
-
               <button onClick={enterFullscreen} className="text-[#6B7280] hover:text-[#7C3AED] transition-colors p-[4px]" title="Fullscreen">
                 <FiMaximize size={15} />
               </button>
@@ -595,22 +584,6 @@ const QuestionPage = () => {
                   <span className="uppercase tracking-wider">{error}</span>
                 </div>
               )}
-            </div>
-
-            <div
-              className="flex items-center gap-3 px-6 py-2 rounded-xl border-2 transition-all shadow-inner"
-              style={{
-                background: isCriticalTime ? 'rgba(239,68,68,0.1)' : isLowTime ? 'rgba(245,158,11,0.05)' : '#030712',
-                borderColor: isCriticalTime ? '#ef4444' : isLowTime ? '#f59e0b' : '#1F2937',
-              }}
-            >
-              <FiClock size={18} className="animate-pulse" style={{ color: isCriticalTime ? '#ef4444' : isLowTime ? '#f59e0b' : '#7C3AED' }} />
-              <span
-                className="text-2xl font-black tabular-nums tracking-tighter"
-                style={{ color: isCriticalTime ? '#ef4444' : isLowTime ? '#f59e0b' : '#F9FAFB' }}
-              >
-                {minutes}:{seconds}
-              </span>
             </div>
           </>
         )}

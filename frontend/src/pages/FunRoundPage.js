@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useGameStore } from '../utils/store';
 import { questionsAPI, submissionsAPI, adminAPI, authAPI } from '../utils/api';
 import {
-  FiZap, FiClock, FiSend, FiCheckCircle, FiLoader,
+  FiZap, FiSend, FiCheckCircle, FiLoader,
   FiArrowLeft, FiImage, FiAlertCircle
 } from 'react-icons/fi';
 import confetti from 'canvas-confetti';
@@ -21,11 +21,11 @@ const FunRoundPage = () => {
   const [submittedTime, setSubmittedTime] = useState(null);
   const [error, setError] = useState('');
   const [earnedPoints, setEarnedPoints] = useState(null);
-  const [elapsedMs, setElapsedMs] = useState(0);
+
   const [imageLoaded, setImageLoaded] = useState(false);
   const [questionNumber, setQuestionNumber] = useState(0);
   const [showQuestion, setShowQuestion] = useState(true);
-  const timerRef = useRef(null);
+
   const prevActiveQId = useRef(null);
   const currentRoundRef = useRef(null);
   const questionsRef = useRef([]);
@@ -113,17 +113,7 @@ const FunRoundPage = () => {
     }
   }, [settings?.activeFunQuestionId, questions]);
 
-  useEffect(() => {
-    if (timerRef.current) clearInterval(timerRef.current);
-    if (settings?.isRoundActive && settings?.roundStartedAt && !submitted) {
-      const tick = () => {
-        setElapsedMs(Date.now() - new Date(settings.roundStartedAt).getTime());
-      };
-      tick();
-      timerRef.current = setInterval(tick, 100);
-    }
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [settings?.isRoundActive, settings?.roundStartedAt, submitted]);
+
 
   const handleSubmit = useCallback(async () => {
     if (submitting || submitted || !activeQuestion) return;
@@ -262,10 +252,6 @@ const FunRoundPage = () => {
 
         <div className="flex items-center gap-[16px]">
           {error && <span className="text-red-400 text-[11px] font-medium max-w-[300px] truncate">{error}</span>}
-          <div className="flex items-center gap-[8px] px-[14px] py-[6px] rounded-[8px] bg-yellow-500/10 border border-yellow-500/20">
-            <FiClock size={14} className="text-yellow-500" />
-            <span className="text-[16px] font-bold tabular-nums text-yellow-500">{formatElapsed(elapsedMs)}</span>
-          </div>
         </div>
       </div>
 

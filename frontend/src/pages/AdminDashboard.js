@@ -1470,17 +1470,7 @@ const AdminDashboard = () => {
                 const tabYear = tabItem?.year;
                 const isThisRoundLive = settings?.currentRound === tabYear && settings?.isRoundActive;
                 
-                // For Fun Rounds, we use a simpler progress check
-                const hasProg = teams.some(t => {
-                    const yd = t.gameState?.[`year${tabYear}`];
-                    if (!yd || !yd.answers) return false;
-                    return Object.keys(yd.answers.cto || {}).length > 0 || 
-                           Object.keys(yd.answers.cfo || {}).length > 0 || 
-                           Object.keys(yd.answers.pm || {}).length > 0 ||
-                           (yd.answers.fun && Object.keys(yd.answers.fun).length > 0);
-                });
-                
-                const isLocked = tabYear < settings?.currentRound;
+
 
                 const funQs = isFunTab
                   ? questions.filter(q => q.year === tabYear && q.role === 'fun')
@@ -1488,40 +1478,18 @@ const AdminDashboard = () => {
                 const currentFunIdx = funQs.findIndex(q => q.questionId === settings?.activeFunQuestionId);
                 const currentFunQ = currentFunIdx >= 0 ? funQs[currentFunIdx] : null;
 
-                const isPreviousRoundComplete = (yr) => {
-                    if (yr <= 0) return true;
-                    // For Fun Rounds (5-9), we don't enforce strict sequential completion from standard rounds
-                    if (yr >= 5) return true;
-                    
-                    const prevYearKey = `year${yr - 1}`;
-                    const targetTeams = teams.filter(t => t.teamId !== 'ADMIN-EVENT-2026');
-                    
-                    if (targetTeams.length === 0) return true;
-                    
-                    return targetTeams.every(team => {
-                        const rd = team.gameState?.[prevYearKey];
-                        if (!rd || !rd.answers) return false;
-                        // Check if all 3 standard roles submitted
-                        const roles = ['cto', 'cfo', 'pm'];
-                        return roles.every(role => rd.answers[role] && Object.keys(rd.answers[role]).length > 0);
-                    });
-                };
 
-                const prevComplete = isPreviousRoundComplete(tabYear);
+
+                const isAnyRoundLive = settings?.isRoundActive;
 
                 let btnIcon, btnLabel, btnStyle, isDisabled = false;
                 if (isThisRoundLive) {
                     btnIcon = <FiStopCircle size={20} />;
                     btnLabel = 'STOP ROUND';
                     btnStyle = 'bg-red-600 hover:bg-red-500 text-white';
-                } else if (isLocked) {
+                } else if (isAnyRoundLive) {
                     btnIcon = <FiLock size={20} />;
-                    btnLabel = 'ROUND LOCKED';
-                    btnStyle = 'opacity-50 cursor-not-allowed';
-                    isDisabled = true;
-                } else if (!prevComplete && tabYear < 5) {
-                    btnIcon = <FiLock size={20} />;
-                    btnLabel = 'PREVIOUS ROUND INCOMPLETE';
+                    btnLabel = 'ANOTHER ROUND ACTIVE';
                     btnStyle = 'bg-[#1F2937] text-[#6B7280] opacity-50 cursor-not-allowed';
                     isDisabled = true;
                 } else {
@@ -1561,14 +1529,7 @@ const AdminDashboard = () => {
                                     variant={isThisRoundLive ? 'secondary' : 'primary'}
                                     disabled={isDisabled}
                                     onClick={() => {
-                                        if (isLocked) {
-                                            setMsg({ type: 'error', text: 'Round locked: Existing submissions detected. Go to Profile > Danger Zone to reset progress.' });
-                                            return;
-                                        }
-                                        if (!prevComplete && tabYear < 5) {
-                                            setMsg({ type: 'error', text: 'Operational Restriction: All teams must complete the previous round before advancing.' });
-                                            return;
-                                        }
+                                        if (isDisabled) return;
                                         handleStartStopRound(!isThisRoundLive);
                                     }}
                                     className={`h-[48px] px-[28px] ${btnStyle}`}

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useGameStore } from '../utils/store';
 import { adminAPI, authAPI } from '../utils/api';
-import { FiUser, FiCheckCircle, FiAlertTriangle, FiBook, FiPlay, FiLock, FiX, FiDownload, FiActivity, FiZap, FiAward, FiClock } from 'react-icons/fi';
+import { FiUser, FiCheckCircle, FiAlertTriangle, FiBook, FiPlay, FiLock, FiX, FiActivity, FiZap, FiAward, FiClock } from 'react-icons/fi';
 import Header from '../components/Header';
 import Card from '../components/Card';
 
@@ -304,7 +304,7 @@ export default function ProfilePage() {
                       <FiCheckCircle size={12} /> Round {adminActiveRound + 1} Done
                   </div>
                 </div>
-            ) : !isEliminated ? (
+            ) : !isEliminated && adminActiveRound < 5 ? (
                 <button 
                     onClick={() => isCurrentlyPlayable && navigate(`/instructions/${adminActiveRound}`)}
                     disabled={!isCurrentlyPlayable}
@@ -314,7 +314,7 @@ export default function ProfilePage() {
                         : 'opacity-50 cursor-not-allowed bg-brand-surface border border-brand-border text-brand-text-muted'
                     }`}
                 >
-                    <FiPlay size={12} /> {isRoundActive ? `Start Round ${adminActiveRound + 1}` : `Waiting for Round ${adminActiveRound + 1} to start`}
+                    <FiPlay size={12} /> {isRoundActive ? `Round ${adminActiveRound + 1} Started - Enter Now` : `Waiting for Round ${adminActiveRound + 1} to start`}
                 </button>
             ) : null}
           </div>

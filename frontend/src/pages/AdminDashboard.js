@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useRef } from 'react';
-import axios from 'axios';
 import { useNavigate, useParams } from 'react-router-dom';
 import Leaderboard from '../components/Leaderboard';
 import FunLeaderboard from '../components/FunLeaderboard';
@@ -129,10 +128,7 @@ const AdminDashboard = () => {
 
   const fetchActiveQuestionStats = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/admin/active-question-stats`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await adminAPI.getActiveQuestionStats();
       setActiveQuestionStats(res.data);
     } catch (err) {
       console.error('Stats fetch error:', err);
@@ -250,7 +246,7 @@ const AdminDashboard = () => {
         setRoundTimeLeft(left);
         if (left <= 0) {
           clearInterval(timerRef.current);
-          handleStartStopRound(false, settings.currentRound);
+          handleEndRound();
         }
       };
       computeLeft();

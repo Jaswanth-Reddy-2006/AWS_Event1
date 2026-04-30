@@ -70,7 +70,8 @@ export const adminAPI = {
   getRoundStats: () => apiClient.get('/admin/round-stats'),
   getRoundSubmissions: (round) => apiClient.get(`/admin/round-submissions/${round}`),
   recoverSession: (teamId, role, year) => apiClient.post('/admin/session-recovery', { teamId, role, year }),
-  resetPassword: (teamId, role, newPassword) => apiClient.put(`/admin/teams/${teamId}/reset-password`, { role, newPassword })
+  resetPassword: (teamId, role, newPassword) => apiClient.put(`/admin/teams/${teamId}/reset-password`, { role, newPassword }),
+  getActiveQuestionStats: () => apiClient.get('/admin/active-question-stats')
 };
 
 

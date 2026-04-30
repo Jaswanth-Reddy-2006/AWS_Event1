@@ -11,9 +11,8 @@ const {
   checkSuspiciousPatterns,
   formatCompanyState
 } = require('../utils/helpers');
-const { 
-  calculateYear2StartingState,
-  calculateYear3StartingState,
+const {
+  calculateNextYearStartingState,
   applyMarketEvent
 } = require('../utils/cascadeLogic');
 const { redisClient, isRedisReady } = require('../utils/redis');
@@ -88,21 +87,14 @@ router.post('/:year', verifyToken, async (req, res) => {
         return res.status(400).json({ error: 'Wrong answer! Try again.', isCorrect: false });
       }
 
-      if (isCorrect) {
-        // Count how many OTHER teams have already submitted a CORRECT answer for this specific question
-        const correctSubmissionsCount = await Submission.countDocuments({
-          year: parseInt(year),
-          [`scores.questionScores.${activeQId}`]: { $gt: 0 },
-          teamId: { $ne: teamId } // Don't count self if there was a retry (though blocked above)
-        });
+      const correctSubmissionsCount = await Submission.countDocuments({
+        year: parseInt(year),
+        [`scores.questionScores.${activeQId}`]: { $gt: 0 },
+        teamId: { $ne: teamId }
+      });
 
-        // 1st: 1000, 2nd: 950, 3rd: 900... min 50
-        roleScore = Math.max(50, 1000 - (correctSubmissionsCount * 50));
-        console.log(`[FUN ROUND] Team ${teamId} (${role}) Correct! Rank: ${correctSubmissionsCount + 1}. Score: ${roleScore} pts`);
-      } else {
-        roleScore = 0;
-        console.log(`[FUN ROUND] Team ${teamId} (${role}) Incorrect answer. 0 pts.`);
-      }
+      roleScore = Math.max(50, 1000 - (correctSubmissionsCount * 50));
+      console.log(`[FUN ROUND] Team ${teamId} (${role}) Correct! Rank: ${correctSubmissionsCount + 1}. Score: ${roleScore} pts`);
     }
     
     // Create submission record
@@ -220,7 +212,8 @@ router.post('/:year', verifyToken, async (req, res) => {
 /**
  * Process year completion and cascade to next year
  */
-async function processYearCompletion(teamId, year) {
+async function processYearCompletion(teamId, yearParam) {
+  const year = parseInt(yearParam);
   const team = await Team.findOne({ teamId });
   const yearKey = `year${year}`;
 
@@ -231,7 +224,6 @@ async function processYearCompletion(teamId, year) {
     (team.gameState[yearKey].scores.pm || 0) +
     (team.gameState[yearKey].scores.fun || 0);
   
-  const participantsCount = (parseInt(year) >= 5) ? 3 : 3; // Keep consistent for consistency or divide by roles that submitted
   const avgTimeSpent = (
     (team.gameState[yearKey].timeSpent?.cto || 0) +
     (team.gameState[yearKey].timeSpent?.cfo || 0) +
@@ -251,9 +243,9 @@ async function processYearCompletion(teamId, year) {
 
 
   // For Fun Rounds, we skip tycoon logic (revenue, bill, runway etc)
-  if (parseInt(year) >= 5) {
+  if (year >= 5) {
      if (!team.gameState[yearKey].companyState) {
-         team.gameState[yearKey].companyState = { ...team.gameState[`year${parseInt(year)-1}`]?.companyState } || {};
+         team.gameState[yearKey].companyState = { ...team.gameState[`year${year-1}`]?.companyState } || {};
      }
      await team.save();
      return;
@@ -287,13 +279,9 @@ async function processYearCompletion(teamId, year) {
     const nextYear = year + 1;
     const nextYearKey = `year${nextYear}`;
     
-    if (year === 1) {
-      team.gameState[nextYearKey].companyState = 
-        await calculateYear2StartingState(team.gameState[yearKey].answers, team.gameState[yearKey].companyState);
-    } else if (year === 2) {
-      team.gameState[nextYearKey].companyState = 
-        await calculateYear3StartingState(team.gameState[yearKey].answers, team.gameState[yearKey].companyState);
-    }
+    if (!team.gameState[nextYearKey]) team.gameState[nextYearKey] = {};
+    team.gameState[nextYearKey].companyState =
+      await calculateNextYearStartingState(year, team.gameState[yearKey].answers, team.gameState[yearKey].companyState);
 
     team.currentYear = nextYear;
   } else {
@@ -304,7 +292,7 @@ async function processYearCompletion(teamId, year) {
   const currentProfit = team.gameState[yearKey].companyState.cumulativeProfit || 0;
   
   if (!team.finalScore) {
-      team.finalScore = { cumulativeProfit: currentProfit, totalScore: roundAvg };
+      team.finalScore = { cumulativeProfit: currentProfit, totalScore: roundTotal };
   } else {
       team.finalScore.cumulativeProfit = currentProfit;
       if (year >= 3) {

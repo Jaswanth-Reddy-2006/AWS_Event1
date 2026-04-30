@@ -2,6 +2,14 @@ import React, { useEffect, useState, useRef } from 'react';
 import { leaderboardAPI } from '../utils/api';
 import { FiTrendingUp, FiUsers, FiAward, FiZap, FiStar } from 'react-icons/fi';
 
+const PODIUM = [
+  { idx: 1, label: '2ND', emoji: '🥈', bg: 'from-slate-400/15 to-slate-600/5', text: 'text-slate-300', border: 'border-slate-400/25', ring: 'ring-slate-400/40', height: 'h-[120px]', avatar: 'w-[56px] h-[56px] text-[18px]', score: 'text-[22px]', order: 'order-1', mt: 'mt-[32px]' },
+  { idx: 0, label: '1ST', emoji: '🥇', bg: 'from-yellow-400/20 to-amber-500/10', text: 'text-yellow-400', border: 'border-yellow-400/30', ring: 'ring-yellow-400/50', height: 'h-[160px]', avatar: 'w-[72px] h-[72px] text-[24px]', score: 'text-[28px]', order: 'order-2', mt: '', glow: 'shadow-[0_0_60px_rgba(250,204,21,0.12)]' },
+  { idx: 2, label: '3RD', emoji: '🥉', bg: 'from-amber-600/12 to-amber-800/5', text: 'text-amber-500', border: 'border-amber-600/25', ring: 'ring-amber-600/40', height: 'h-[100px]', avatar: 'w-[48px] h-[48px] text-[16px]', score: 'text-[20px]', order: 'order-3', mt: 'mt-[48px]' },
+];
+
+const getInitials = (name) => name.split(/[\s-]+/).map(w => w[0]).join('').toUpperCase().slice(0, 2);
+
 const FunLeaderboard = ({ isFullScreen = false, filterRound = null }) => {
   const [leaderboard, setLeaderboard] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -110,6 +118,42 @@ const FunLeaderboard = ({ isFullScreen = false, filterRound = null }) => {
             <div className="w-[8px] h-[8px] bg-emerald-500 rounded-full animate-pulse" />
             <span className="text-[13px] font-bold text-emerald-400 uppercase tracking-wider">Live</span>
           </div>
+        </div>
+      )}
+
+      {/* Podium — Top 3 */}
+      {leaderboard.length >= 2 && (
+        <div className={`flex items-end justify-center gap-[16px] mb-[28px] ${isFullScreen ? 'px-[60px]' : 'px-[20px]'}`}>
+          {PODIUM.map(({ idx, label, emoji, bg, text, border, ring, height, avatar, score, order, mt, glow }) => {
+            const team = leaderboard[idx];
+            if (!team) return null;
+            const fsH = isFullScreen ? 'h-[200px]' : height;
+            const fsA = isFullScreen ? 'w-[90px] h-[90px] text-[30px]' : avatar;
+            const fsS = isFullScreen ? 'text-[36px]' : score;
+            return (
+              <div key={idx} className={`flex-1 max-w-[280px] ${order} ${mt}`}>
+                <div className="flex flex-col items-center mb-[12px]">
+                  <div className={`${fsA} rounded-full bg-gradient-to-br ${bg} ${ring} ring-2 flex items-center justify-center font-bold ${text}`}>
+                    {getInitials(team.teamName)}
+                  </div>
+                  <div className="flex items-center gap-[4px] mt-[6px]">
+                    <span className={`${isFullScreen ? 'text-[20px]' : 'text-[14px]'}`}>{emoji}</span>
+                    <span className={`text-[9px] font-bold uppercase tracking-[0.2em] ${text}`}>{label}</span>
+                  </div>
+                </div>
+                <div className={`bg-[#0B0F14] ${border} border rounded-t-[14px] p-[20px] text-center ${glow || ''} relative overflow-hidden ${fsH} flex flex-col justify-center`}>
+                  <div className={`absolute inset-0 bg-gradient-to-b ${bg} pointer-events-none`} />
+                  <div className="relative z-10">
+                    <h4 className={`${isFullScreen ? 'text-[20px]' : 'text-[15px]'} font-bold text-white truncate mb-[6px] px-[4px]`}>{team.teamName}</h4>
+                    <div className={`${fsS} font-black font-mono ${text} tracking-tight`}>
+                      {team.funPoints || 0}
+                      <span className="text-[11px] font-medium ml-[3px] opacity-50">pts</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 

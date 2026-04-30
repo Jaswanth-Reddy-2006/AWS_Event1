@@ -610,21 +610,31 @@ router.get('/active-question-stats', verifyToken, verifyAdmin, async (req, res) 
     const settings = await GameSettings.findOne({ id: 'global_settings' });
     const qId = settings?.activeFunQuestionId;
     const year = settings?.currentRound;
+    const totalTeams = await Team.countDocuments({ teamId: { $ne: 'ADMIN-EVENT-2026' } });
 
     if (!qId || year < 5) {
-      const totalTeams = await Team.countDocuments({ teamId: { $ne: 'ADMIN-EVENT-2026' } });
-      return res.json({ answeredCount: 0, totalTeams });
+      return res.json({ answeredCount: 0, totalTeams, perQuestion: [] });
     }
 
     const Submission = require('../models/Submission');
+    const Question = require('../models/Question');
+
     const answeredCount = await Submission.countDocuments({
       year,
-      [`scores.questionScores.${qId}`]: { $exists: true }
+      [`scores.questionScores.${qId}`]: { $gt: 0 }
     });
 
-    const totalTeams = await Team.countDocuments({ teamId: { $ne: 'ADMIN-EVENT-2026' } });
+    const funQuestions = await Question.find({ year, role: 'fun' }, 'questionId questionText');
+    const perQuestion = [];
+    for (const q of funQuestions) {
+      const count = await Submission.countDocuments({
+        year,
+        [`scores.questionScores.${q.questionId}`]: { $gt: 0 }
+      });
+      perQuestion.push({ questionId: q.questionId, text: q.questionText, correctCount: count });
+    }
 
-    res.status(200).json({ answeredCount, totalTeams });
+    res.status(200).json({ answeredCount, totalTeams, activeQId: qId, perQuestion });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

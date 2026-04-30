@@ -692,6 +692,29 @@ const AdminDashboard = () => {
                         </button>
                     </div>
                 </div>
+
+                {/* Per-Question Breakdown */}
+                {activeQuestionStats.perQuestion?.length > 0 && (
+                    <div className="mt-[12px] flex flex-wrap gap-[8px]">
+                        {activeQuestionStats.perQuestion.map((q, i) => {
+                            const isActive = q.questionId === activeQuestionStats.activeQId;
+                            return (
+                                <div key={q.questionId} className={`flex items-center gap-[10px] px-[14px] py-[8px] rounded-[10px] border ${
+                                    isActive ? 'bg-yellow-500/10 border-yellow-500/30' : 'bg-white/[0.03] border-white/5'
+                                }`}>
+                                    <span className={`text-[10px] font-black uppercase tracking-wider ${isActive ? 'text-yellow-500' : 'text-[#6B7280]'}`}>
+                                        Q{i + 1}
+                                    </span>
+                                    <span className={`text-[16px] font-black tabular-nums ${isActive ? 'text-yellow-400' : 'text-white/60'}`}>
+                                        {q.correctCount}
+                                    </span>
+                                    <span className="text-[10px] text-white/20 font-bold">/ {activeQuestionStats.totalTeams}</span>
+                                    {isActive && <div className="w-[6px] h-[6px] rounded-full bg-yellow-500 animate-pulse" />}
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
             </div>
         )}
 

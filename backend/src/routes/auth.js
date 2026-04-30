@@ -110,8 +110,12 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // Find team by ID
-    const team = await Team.findOne({ teamId });
+    // Find team by ID (case-insensitive, trim whitespace)
+    const cleanTeamId = teamId.trim();
+    let team = await Team.findOne({ teamId: cleanTeamId });
+    if (!team) {
+      team = await Team.findOne({ teamId: { $regex: new RegExp(`^${cleanTeamId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') } });
+    }
     if (!team) {
       return res.status(404).json({ error: 'Team not found. Check your Team ID.' });
     }

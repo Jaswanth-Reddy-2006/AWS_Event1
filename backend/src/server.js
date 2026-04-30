@@ -65,11 +65,11 @@ app.use((req, res, next) => {
 });
 
 // API Routes
-app.use('/api/auth', loginLimiter, authRoutes);
+app.use('/api/auth', authRoutes);
 app.use('/api/questions', questionsRoutes);
-app.use('/api/submissions', submissionLimiter, submissionsRoutes);
+app.use('/api/submissions', submissionsRoutes);
 app.use('/api/leaderboard', leaderboardRoutes);
-app.use('/api/admin', adminLimiter, adminRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

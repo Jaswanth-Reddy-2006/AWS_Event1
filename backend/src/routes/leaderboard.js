@@ -14,7 +14,6 @@ router.get('/', async (req, res) => {
     if (isRedisReady()) {
       const cached = await redisClient.get(cacheKey);
       if (cached) {
-        console.log('[Redis Hit] Serving Leaderboard Cache');
         return res.status(200).json(JSON.parse(cached));
       }
     }
@@ -152,7 +151,7 @@ router.get('/', async (req, res) => {
     };
 
     if (isRedisReady()) {
-      await redisClient.setEx(cacheKey, 5, JSON.stringify(result));
+      await redisClient.setEx(cacheKey, 30, JSON.stringify(result));
     }
 
     res.status(200).json(result);
@@ -247,7 +246,7 @@ router.get('/fun', async (req, res) => {
     };
 
     if (isRedisReady()) {
-      await redisClient.setEx(cacheKey, 1, JSON.stringify(result));
+      await redisClient.setEx(cacheKey, 15, JSON.stringify(result));
     }
 
     res.status(200).json(result);

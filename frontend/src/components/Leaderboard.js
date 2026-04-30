@@ -68,7 +68,7 @@ const Leaderboard = ({ isFullScreen = false, filterYear = null }) => {
     };
 
     loadLeaderboard();
-    const interval = setInterval(loadLeaderboard, 5000);
+    const interval = setInterval(loadLeaderboard, 30000);
     return () => clearInterval(interval);
   }, [filterYear]);
 

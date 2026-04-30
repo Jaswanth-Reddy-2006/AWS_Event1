@@ -53,7 +53,7 @@ const FunLeaderboard = ({ isFullScreen = false, filterRound = null }) => {
     };
 
     loadLeaderboard();
-    const interval = setInterval(loadLeaderboard, 1000);
+    const interval = setInterval(loadLeaderboard, 15000);
     return () => clearInterval(interval);
   }, [filterRound]);
 

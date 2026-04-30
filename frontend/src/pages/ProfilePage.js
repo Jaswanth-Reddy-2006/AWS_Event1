@@ -54,7 +54,8 @@ export default function ProfilePage() {
     );
   }
 
-  const adminActiveRound = settings?.currentRound || 0;
+  const adminActiveRound = settings?.currentRound ?? 0;
+  const roundLabel = adminActiveRound >= 5 ? `Fun Round ${adminActiveRound - 4}` : `Round ${adminActiveRound + 1}`;
   const isRoundActive = settings?.isRoundActive;
   const hasCompletedCurrentRound = Object.keys(teamData?.gameState?.[`year${adminActiveRound}`]?.answers?.[role?.toLowerCase()] || {}).length > 0;
   const isCurrentlyPlayable = isRoundActive && !hasCompletedCurrentRound;
@@ -86,11 +87,11 @@ export default function ProfilePage() {
             <div>
                 <p className="text-10 text-brand-text-muted uppercase tracking-widest mb-2 font-bold">Mission Status</p>
                 {isEliminated ? (
-                  <div className="text-red-400 font-bold text-14 flex items-center"><FiAlertTriangle className="mr-6" /> ELIMINATED — Round {adminActiveRound + 1}</div>
+                  <div className="text-red-400 font-bold text-14 flex items-center"><FiAlertTriangle className="mr-6" /> ELIMINATED — {roundLabel}</div>
                 ) : hasCompletedCurrentRound ? (
                   <div className="text-emerald-400 font-bold text-14 flex items-center"><FiCheckCircle className="mr-6" /> You have completed round {adminActiveRound + 1}</div>
                 ) : isRoundActive ? (
-                  <div className="text-brand-primary font-bold text-14 flex items-center animate-pulse"><FiActivity className="mr-6" /> Round {adminActiveRound + 1} started</div>
+                  <div className="text-brand-primary font-bold text-14 flex items-center animate-pulse"><FiActivity className="mr-6" /> {roundLabel} started</div>
                 ) : (
                   <div className="text-brand-text-muted font-semibold text-14 flex items-center"><FiLock className="mr-6" /> waiting for round {adminActiveRound + 1} to be started</div>
                 )}
@@ -298,10 +299,10 @@ export default function ProfilePage() {
                 <div className="flex items-center gap-16">
                   <div className="flex flex-col items-end">
                     <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest leading-none">Registered</span>
-                    <span className="text-[10px] font-semibold text-brand-text-muted mt-2 italic">Waiting for Round {adminActiveRound + 2}...</span>
+                    <span className="text-[10px] font-semibold text-brand-text-muted mt-2 italic">Waiting for next round...</span>
                   </div>
                   <div className="h-[32px] px-12 rounded bg-emerald-500/10 border border-emerald-500/30 flex items-center gap-6 text-emerald-400 text-[11px] font-bold shadow-glow-sm uppercase tracking-wider">
-                      <FiCheckCircle size={12} /> Round {adminActiveRound + 1} Done
+                      <FiCheckCircle size={12} /> {roundLabel} Done
                   </div>
                 </div>
             ) : !isEliminated && adminActiveRound < 5 ? (

@@ -619,19 +619,20 @@ router.get('/active-question-stats', verifyToken, verifyAdmin, async (req, res) 
     const Submission = require('../models/Submission');
     const Question = require('../models/Question');
 
-    const answeredCount = await Submission.countDocuments({
+    const answeredTeams = await Submission.distinct('teamId', {
       year,
       [`scores.questionScores.${qId}`]: { $gt: 0 }
     });
+    const answeredCount = answeredTeams.length;
 
     const funQuestions = await Question.find({ year, role: 'fun' }, 'questionId questionText');
     const perQuestion = [];
     for (const q of funQuestions) {
-      const count = await Submission.countDocuments({
+      const teams = await Submission.distinct('teamId', {
         year,
         [`scores.questionScores.${q.questionId}`]: { $gt: 0 }
       });
-      perQuestion.push({ questionId: q.questionId, text: q.questionText, correctCount: count });
+      perQuestion.push({ questionId: q.questionId, text: q.questionText, correctCount: teams.length });
     }
 
     res.status(200).json({ answeredCount, totalTeams, activeQId: qId, perQuestion });

@@ -159,6 +159,8 @@ const QuestionPage = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [year, role, teamId, navigate, questions.length, setCurrentQuestions, submitted, setNextRoundSettings, setTabSwitchWarnings]);
 
+  const timerHadTime = useRef(false);
+
   useEffect(() => {
     if (submitted || !settingsReady) return;
     const timer = setInterval(() => {
@@ -166,13 +168,24 @@ const QuestionPage = () => {
       if (settings?.roundStartedAt) {
         const deadline = new Date(settings.roundStartedAt).getTime() + 20 * 60 * 1000;
         const remaining = Math.max(0, Math.round((deadline - Date.now()) / 1000));
+        if (remaining > 0) {
+          timerHadTime.current = true;
+        } else if (!timerHadTime.current) {
+          clearInterval(timer);
+          if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+          navigate('/profile');
+          return;
+        }
         setTimeLeft(remaining);
       } else {
-        setTimeLeft(prev => (prev > 0 ? prev - 1 : 0));
+        setTimeLeft(prev => {
+          if (prev > 1) timerHadTime.current = true;
+          return prev > 0 ? prev - 1 : 0;
+        });
       }
     }, 1000);
     return () => clearInterval(timer);
-  }, [submitted, settingsReady]);
+  }, [submitted, settingsReady, navigate]);
 
   const hasLoadedQuestions = useRef(false);
   useEffect(() => {
@@ -180,7 +193,7 @@ const QuestionPage = () => {
   }, [questions.length]);
 
   useEffect(() => {
-    if (timeLeft === 0 && !submitting && !submitted && settingsReady && hasLoadedQuestions.current) handleSubmit();
+    if (timeLeft === 0 && !submitting && !submitted && settingsReady && hasLoadedQuestions.current && timerHadTime.current) handleSubmit();
   }, [timeLeft, submitting, submitted, settingsReady, handleSubmit]);
 
   const goToQuestion = (index) => {

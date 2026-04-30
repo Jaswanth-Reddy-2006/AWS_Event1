@@ -31,7 +31,7 @@ router.get('/settings', verifyToken, async (req, res) => {
 
     // Save to Cache (5 min TTL)
     if (isRedisReady()) {
-      await redisClient.setEx(cacheKey, 300, JSON.stringify(settings));
+      await redisClient.setEx(cacheKey, 2, JSON.stringify(settings));
     }
 
     res.status(200).json(settings);

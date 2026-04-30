@@ -58,9 +58,11 @@ app.use(cors({
   credentials: true
 }));
 
-// Request logging middleware
+// Request logging middleware — only log non-polling routes
 app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
+  if (req.path !== '/api/admin/settings' && req.path !== '/api/health') {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
+  }
   next();
 });
 

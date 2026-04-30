@@ -1,22 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 
-/**
- * Lockdown component that prevents cheating
- * - Detects tab switches
- * - Disables copy-paste
- * - Disables right-click
- * - Prevents F12 (DevTools)
- * - Warns on first 3 tab switches, auto-submits on 4th
- */
 const LockdownMode = ({ onTabSwitch, onWarning }) => {
   const [violationCount, setViolationCount] = useState(0);
+  const fullscreenActive = useRef(false);
 
   useEffect(() => {
     const handleViolation = (reason) => {
       const newCount = violationCount + 1;
       setViolationCount(newCount);
       onTabSwitch(newCount, reason);
-      
+
       if (newCount < 5) {
         onWarning(`Warning: ${reason}. Violation ${newCount}/5 before automated extraction.`);
       }
@@ -29,7 +22,9 @@ const LockdownMode = ({ onTabSwitch, onWarning }) => {
     };
 
     const handleFullscreenChange = () => {
-      if (!document.fullscreenElement) {
+      if (document.fullscreenElement) {
+        fullscreenActive.current = true;
+      } else if (fullscreenActive.current) {
         handleViolation('Exited fullscreen');
       }
     };
@@ -49,15 +44,6 @@ const LockdownMode = ({ onTabSwitch, onWarning }) => {
       }
     };
 
-    const handleFullscreen = async () => {
-      try {
-        await document.documentElement.requestFullscreen();
-      } catch (err) {
-        console.warn('Fullscreen not available:', err);
-      }
-    };
-
-    // Push initial state to prevent immediate back
     window.history.pushState(null, '', window.location.href);
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -67,8 +53,6 @@ const LockdownMode = ({ onTabSwitch, onWarning }) => {
     document.addEventListener('paste', handlePaste);
     document.addEventListener('contextmenu', handleContextMenu);
     document.addEventListener('keydown', handleKeyDown);
-
-    handleFullscreen();
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
